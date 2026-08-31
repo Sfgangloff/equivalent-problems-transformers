@@ -1,0 +1,29 @@
+# Local smoke-test scale: runs on a laptop CPU/MPS in well under a minute.
+# Not meant to produce meaningful accuracy numbers -- just to verify the
+# pipeline (data -> train -> checkpoint -> eval) runs end to end.
+
+data:
+  n_puzzles: 500
+  target_clues: 40
+  seed: 0
+  val_fraction: 0.1
+  test_fraction: 0.1
+  output_path: data/sudoku_tiny.npz
+
+model:
+  d_model: 64
+  n_layers: 2
+  n_heads: 4
+  dim_feedforward: 256
+  dropout: 0.1
+  num_iterations: 1
+
+train:
+  batch_size: 32
+  lr: 3.0e-4
+  epochs: 10
+  device: auto
+  seed: 0
+  log_path: logs/tiny.jsonl
+  checkpoint_path: checkpoints/tiny.pt
+  log_every: 5
