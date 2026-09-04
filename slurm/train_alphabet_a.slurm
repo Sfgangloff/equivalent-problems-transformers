@@ -10,7 +10,7 @@
 #SBATCH --qos=boost_qos_dbg   # TODO: this QOS caps out at 30min/8 nodes -- fine for a first
                                #       smoke run, switch to the default QOS or boost_qos_lprod
                                #       (<=4 days) once that smoke run has passed.
-#SBATCH --account=<TODO_project_account>
+#SBATCH --account=EUHPC_B38_121
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
