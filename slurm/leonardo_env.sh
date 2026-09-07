@@ -17,4 +17,9 @@ python3 -m venv --system-site-packages "$HOME/envs/equiv" 2>/dev/null || true
 source "$HOME/envs/equiv/bin/activate"
 pip install --quiet pyyaml pytest
 
-cd "$SLURM_SUBMIT_DIR"
+
+# SLURM_SUBMIT_DIR is only set by sbatch batch jobs, not interactive `srun
+# --pty bash` sessions -- default to $PWD so this script works for both
+# (an sbatch job's cwd is already its submit dir by default anyway; this
+# cd is only a safety net for the rare case it isn't).
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
