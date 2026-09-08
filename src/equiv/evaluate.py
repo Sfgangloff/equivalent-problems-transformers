@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.equiv.model.config import Config  # noqa: E402
 from src.equiv.model.transformer import SudokuTransformer  # noqa: E402
-from src.equiv.sudoku.alphabets import ALPHABETS, class_range  # noqa: E402
+from src.equiv.sudoku.alphabets import ALPHABET_LETTERS, class_range, offset_for_letter  # noqa: E402
 from src.equiv.sudoku.dataset import SudokuDataset  # noqa: E402
 from src.equiv.sudoku.solver import is_valid_board  # noqa: E402
 from src.equiv.utils import pick_device  # noqa: E402
@@ -39,14 +39,11 @@ def load_checkpoint(path: str, device: torch.device) -> tuple[SudokuTransformer,
 
 def transplant(model: SudokuTransformer, source_alphabet: str, target_alphabet: str) -> None:
     """In-place: copy source_alphabet's per-digit embedding/output-head rows
-    into target_alphabet's token slots via the known renaming map."""
-    if source_alphabet not in ALPHABETS or target_alphabet not in ALPHABETS:
-        raise ValueError(
-            f"transplant needs both alphabets in {list(ALPHABETS)}, got "
-            f"{source_alphabet!r} -> {target_alphabet!r}"
-        )
-    src_offset = ALPHABETS[source_alphabet]
-    dst_offset = ALPHABETS[target_alphabet]
+    into target_alphabet's token slots via the known renaming map. Works for
+    any two letters (each letter's offset is fixed by its position in
+    ALPHABET_LETTERS, see offset_for_letter), not just the original A/B."""
+    src_offset = offset_for_letter(source_alphabet)
+    dst_offset = offset_for_letter(target_alphabet)
     with torch.no_grad():
         for digit in range(1, 10):
             src_token = digit + src_offset
@@ -67,9 +64,10 @@ def evaluate(
     device: torch.device,
     batch_size: int = 128,
 ) -> dict:
-    dataset = SudokuDataset(base_path, split, eval_alphabet)
+    alphabets = {eval_alphabet: offset_for_letter(eval_alphabet)}
+    dataset = SudokuDataset(base_path, split, eval_alphabet, alphabets=alphabets)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    lo, hi = class_range(eval_alphabet)
+    lo, hi = class_range(eval_alphabet, alphabets)
 
     total_blank = 0
     total_cell_correct = 0
@@ -112,7 +110,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, help="config yaml (used for data.output_path)")
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--alphabet", required=True, choices=["A", "B"], help="alphabet to evaluate on")
+    parser.add_argument(
+        "--alphabet",
+        required=True,
+        choices=list(ALPHABET_LETTERS),
+        help="alphabet to evaluate on (must exist within the checkpoint's vocab_size)",
+    )
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument(
         "--transplant",
@@ -126,9 +129,20 @@ def main() -> None:
     device = pick_device(config.train.device)
 
     model, ckpt = load_checkpoint(args.checkpoint, device)
-    source_alphabet = ckpt.get("alphabet", "?")
+    source_alphabet = ckpt.get("alphabet")
+    trained_alphabets = ckpt.get("alphabets")  # non-None for a multi-alphabet (K-way) checkpoint
 
-    if args.transplant:
+    if trained_alphabets is not None:
+        # multi-alphabet checkpoint: no single "source" alphabet, so mode is
+        # "known" (eval_alphabet was one of the K training alphabets) or
+        # "zero_shot" (it wasn't -- e.g. a held-out letter like "E").
+        if args.transplant:
+            raise ValueError(
+                "--transplant needs a single well-defined source alphabet; "
+                f"checkpoint {args.checkpoint} is multi-alphabet ({trained_alphabets})"
+            )
+        mode = "known" if args.alphabet in trained_alphabets else "zero_shot"
+    elif args.transplant:
         transplant(model, source_alphabet, args.alphabet)
         mode = "transplanted_cross"
     elif args.alphabet == source_alphabet:
@@ -140,6 +154,7 @@ def main() -> None:
     result = {
         "checkpoint": str(args.checkpoint),
         "trained_alphabet": source_alphabet,
+        "trained_alphabets": trained_alphabets,
         "eval_alphabet": args.alphabet,
         "mode": mode,
         "split": args.split,

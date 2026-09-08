@@ -2,9 +2,9 @@
 relabeling applied lazily per __getitem__.
 
 Only one base dataset ever exists on disk (digits 1-9, produced by
-scripts/generate_sudoku.py). Alphabet A, alphabet B, and the union of both
-are all views over that same file/indices, so they can never drift out of
-sync with each other.
+scripts/generate_sudoku.py). Alphabet A, alphabet B, the union of both, and
+any K-way multi-alphabet combination are all views over that same
+file/indices, so they can never drift out of sync with each other.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from typing import Literal
 
 import numpy as np
 import torch
-from torch.utils.data import ConcatDataset, Dataset
+from torch.utils.data import ConcatDataset, Dataset, Subset
 
-from .alphabets import relabel
+from .alphabets import ALPHABETS, offset_for_letter, relabel
 
 Split = Literal["train", "val", "test"]
 _SPLIT_CODE = {"train": 0, "val": 1, "test": 2}
@@ -24,21 +24,30 @@ _SPLIT_CODE = {"train": 0, "val": 1, "test": 2}
 
 class SudokuDataset(Dataset):
     """One (puzzle, solution, blank_mask) view of the base dataset, in the
-    given alphabet ("A" or "B")."""
+    given alphabet. `alphabets` maps letter -> offset (defaults to the
+    2-alphabet A/B scheme); pass a wider map (see sudoku.alphabets) to use
+    an alphabet beyond A/B, e.g. one built via offset_for_letter."""
 
-    def __init__(self, base_path: str | Path, split: Split, alphabet: str):
+    def __init__(
+        self,
+        base_path: str | Path,
+        split: Split,
+        alphabet: str,
+        alphabets: dict[str, int] = ALPHABETS,
+    ):
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         self.puzzles = data["puzzles"][mask]
         self.solutions = data["solutions"][mask]
         self.alphabet = alphabet
+        self.alphabets = alphabets
 
     def __len__(self) -> int:
         return len(self.puzzles)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        puzzle = relabel(self.puzzles[idx].tolist(), self.alphabet)
-        solution = relabel(self.solutions[idx].tolist(), self.alphabet)
+        puzzle = relabel(self.puzzles[idx].tolist(), self.alphabet, self.alphabets)
+        solution = relabel(self.solutions[idx].tolist(), self.alphabet, self.alphabets)
         puzzle_t = torch.tensor(puzzle, dtype=torch.long)
         solution_t = torch.tensor(solution, dtype=torch.long)
         blank_mask = puzzle_t == 0
@@ -51,3 +60,35 @@ def union_dataset(base_path: str | Path, split: Split) -> ConcatDataset:
     return ConcatDataset(
         [SudokuDataset(base_path, split, "A"), SudokuDataset(base_path, split, "B")]
     )
+
+
+def multi_alphabet_dataset(
+    base_path: str | Path,
+    split: Split,
+    alphabet_letters: list[str],
+    n_puzzles: int | None = None,
+    seed: int = 0,
+) -> ConcatDataset:
+    """K-way generalization of union_dataset: the SAME underlying puzzle
+    subset (optionally size-limited to n_puzzles, one seeded random sample
+    shared across every letter), relabeled once per letter in
+    `alphabet_letters` and concatenated. Letters need not be contiguous
+    from "A" (e.g. skip "E" to reserve it as a held-out alphabet) --
+    offsets come from each letter's fixed position (offset_for_letter),
+    not from list order, so a given letter's tokens are stable regardless
+    of which other letters are included.
+    """
+    alphabets = {letter: offset_for_letter(letter) for letter in alphabet_letters}
+
+    base = SudokuDataset(base_path, split, alphabet_letters[0], alphabets)
+    if n_puzzles is None:
+        indices = list(range(len(base)))
+    else:
+        rng = np.random.default_rng(seed)
+        indices = rng.choice(len(base), size=min(n_puzzles, len(base)), replace=False).tolist()
+
+    views = [
+        Subset(SudokuDataset(base_path, split, letter, alphabets), indices)
+        for letter in alphabet_letters
+    ]
+    return ConcatDataset(views)

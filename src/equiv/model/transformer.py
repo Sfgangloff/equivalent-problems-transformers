@@ -11,6 +11,10 @@ answer to the question this study asks.
 back each step's argmax prediction for still-blank cells (RRN/IREM-style).
 forward() always returns one logits tensor per iteration so the training
 loop can supervise every step.
+
+`vocab_size`/`num_classes` default to the 2-alphabet (A, B) values but can
+be overridden (e.g. via sudoku.alphabets.vocab_size_for(k)/num_classes_for(k))
+for multi-alphabet (K > 2) experiments.
 """
 
 from __future__ import annotations
@@ -34,11 +38,13 @@ class SudokuTransformer(nn.Module):
         dim_feedforward: int = 1024,
         dropout: float = 0.1,
         num_iterations: int = 1,
+        vocab_size: int = VOCAB_SIZE,
+        num_classes: int = NUM_CLASSES,
     ):
         super().__init__()
         self.num_iterations = num_iterations
 
-        self.token_embedding = nn.Embedding(VOCAB_SIZE, d_model)
+        self.token_embedding = nn.Embedding(vocab_size, d_model)
         self.row_embedding = nn.Embedding(9, d_model)
         self.col_embedding = nn.Embedding(9, d_model)
         self.box_embedding = nn.Embedding(9, d_model)
@@ -59,7 +65,7 @@ class SudokuTransformer(nn.Module):
             norm_first=True,
         )
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
-        self.output_head = nn.Linear(d_model, NUM_CLASSES)
+        self.output_head = nn.Linear(d_model, num_classes)
 
     def _positions(self) -> torch.Tensor:
         return (

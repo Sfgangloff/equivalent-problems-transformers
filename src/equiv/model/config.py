@@ -33,6 +33,7 @@ class ModelConfig:
 class TrainConfig:
     batch_size: int = 128
     lr: float = 3.0e-4
+    weight_decay: float = 0.01  # AdamW's own default; finetune.py's freeze path overrides to 0.0
     epochs: int = 20
     device: str = "auto"  # "auto" picks cuda > mps > cpu
     seed: int = 0

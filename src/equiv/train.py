@@ -1,5 +1,8 @@
-"""Train one model: a single alphabet ("A"/"B") or the mixed-alphabet
-reference model ("union").
+"""Train one model: a single alphabet ("A"/"B"), the mixed-2-alphabet
+reference model ("union"), or a K-way multi-alphabet model (`--alphabets`,
+e.g. `--alphabets A,B,C,D,F,G` -- letters need not be contiguous from "A",
+so a letter like "E" can be reserved as a held-out alphabet for a later
+zero-shot/few-shot experiment without ever appearing in this run's data).
 
 To produce the random-init baseline referenced in the eval plan, run with
 `--epochs 0` and a `--tag` so it doesn't overwrite the real checkpoint for
@@ -26,8 +29,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from src.equiv.model.config import Config  # noqa: E402
 from src.equiv.model.transformer import SudokuTransformer  # noqa: E402
-from src.equiv.sudoku.alphabets import class_range  # noqa: E402
-from src.equiv.sudoku.dataset import SudokuDataset, union_dataset  # noqa: E402
+from src.equiv.sudoku.alphabets import (  # noqa: E402
+    ALPHABET_LETTERS,
+    class_range,
+    num_classes_for,
+    offset_for_letter,
+    vocab_size_for,
+)
+from src.equiv.sudoku.dataset import (  # noqa: E402
+    SudokuDataset,
+    multi_alphabet_dataset,
+    union_dataset,
+)
 from src.equiv.utils import pick_device  # noqa: E402
 
 
@@ -49,14 +62,17 @@ def compute_loss(
 
 @torch.no_grad()
 def evaluate_split(
-    model: SudokuTransformer, loader: DataLoader, device: torch.device, alphabet: str
+    model: SudokuTransformer, loader: DataLoader, device: torch.device, alphabet: str | None
 ) -> tuple[float, float]:
-    # For "union" the loader mixes both alphabets, so there's no single class
-    # range to restrict to -- this val accuracy is a rough monitoring signal
-    # only; evaluate.py's per-alphabet restricted accuracy is the rigorous one.
-    restrict = alphabet in ("A", "B")
+    # Restricting to a single class_range only makes sense for a loader that
+    # is entirely one alphabet. "union" and multi-alphabet (alphabet=None)
+    # loaders mix alphabets per batch, so this val accuracy is a rough
+    # monitoring signal only; evaluate.py's per-alphabet restricted accuracy
+    # (always single-alphabet) is the rigorous one. Any single letter (not
+    # just "A"/"B") is restrictable -- offset_for_letter handles any letter.
+    restrict = alphabet is not None and alphabet != "union"
     if restrict:
-        lo, hi = class_range(alphabet)
+        lo, hi = class_range(alphabet, {alphabet: offset_for_letter(alphabet)})
 
     model.eval()
     total_loss, total_correct, total_blank, n_batches = 0.0, 0, 0, 0
@@ -83,29 +99,65 @@ def evaluate_split(
     return total_loss / max(n_batches, 1), cell_acc
 
 
-def _tagged_path(path: str, alphabet: str, tag: str) -> Path:
+def _tagged_path(path: str, identifier: str, tag: str) -> Path:
     p = Path(path)
-    suffix = f"_{alphabet}" + (f"_{tag}" if tag else "")
+    suffix = f"_{identifier}" + (f"_{tag}" if tag else "")
     return p.with_name(f"{p.stem}{suffix}{p.suffix}")
 
 
-def train(config: Config, alphabet: str, epochs: int, tag: str) -> Path:
+def train(
+    config: Config,
+    alphabet: str | None,
+    epochs: int,
+    tag: str,
+    alphabets: list[str] | None = None,
+    n_puzzles: int | None = None,
+) -> Path:
     torch.manual_seed(config.train.seed)
     random.seed(config.train.seed)
     device = pick_device(config.train.device)
 
-    model = SudokuTransformer(**asdict(config.model)).to(device)
-    checkpoint_path = _tagged_path(config.train.checkpoint_path, alphabet, tag)
+    if alphabets is not None:
+        # NOT len(alphabets): letters need not be contiguous from "A" (e.g.
+        # A,B,C,D,F,G deliberately skips E to reserve it held-out). Vocab/
+        # output-head size must cover up to the highest-position letter used
+        # so that skipped letters' rows still exist (untrained) in the model
+        # for later zero-shot/few-shot eval -- len() alone would undersize
+        # the model and either truncate or misalign every letter after a gap.
+        k = max(ALPHABET_LETTERS.index(letter) for letter in alphabets) + 1
+        model_kwargs = {
+            **asdict(config.model),
+            "vocab_size": vocab_size_for(k),
+            "num_classes": num_classes_for(k),
+        }
+        identifier = "multi" + "".join(alphabets)
+    else:
+        model_kwargs = asdict(config.model)
+        identifier = alphabet
+
+    model = SudokuTransformer(**model_kwargs).to(device)
+    checkpoint_path = _tagged_path(config.train.checkpoint_path, identifier, tag)
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
     if epochs > 0:
-        train_ds = build_dataset(config.data.output_path, "train", alphabet)
-        val_ds = build_dataset(config.data.output_path, "val", alphabet)
+        if alphabets is not None:
+            train_ds = multi_alphabet_dataset(
+                config.data.output_path, "train", alphabets, n_puzzles=n_puzzles, seed=config.train.seed
+            )
+            val_ds = multi_alphabet_dataset(config.data.output_path, "val", alphabets)
+        else:
+            train_ds = build_dataset(config.data.output_path, "train", alphabet)
+            val_ds = build_dataset(config.data.output_path, "val", alphabet)
         train_loader = DataLoader(train_ds, batch_size=config.train.batch_size, shuffle=True)
         val_loader = DataLoader(val_ds, batch_size=config.train.batch_size, shuffle=False)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=config.train.lr)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=config.train.lr, weight_decay=config.train.weight_decay)
 
-        log_path = _tagged_path(config.train.log_path, alphabet, tag)
+        # For a single-alphabet loader, evaluate_split can restrict argmax to
+        # that alphabet's own class range; a union/multi-alphabet loader mixes
+        # alphabets per batch, so pass None (no restriction) -- see its docstring.
+        eval_alphabet = alphabet if alphabets is None else None
+
+        log_path = _tagged_path(config.train.log_path, identifier, tag)
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         step = 0
@@ -141,7 +193,7 @@ def train(config: Config, alphabet: str, epochs: int, tag: str) -> Path:
                         log_file.flush()
                     step += 1
 
-                val_loss, val_cell_acc = evaluate_split(model, val_loader, device, alphabet)
+                val_loss, val_cell_acc = evaluate_split(model, val_loader, device, eval_alphabet)
                 log_file.write(
                     json.dumps(
                         {
@@ -161,8 +213,14 @@ def train(config: Config, alphabet: str, epochs: int, tag: str) -> Path:
     torch.save(
         {
             "model_state": model.state_dict(),
-            "model_config": asdict(config.model),
+            # model_kwargs (not asdict(config.model)) so a checkpoint from a
+            # K-way multi-alphabet run records its actual vocab_size/num_classes
+            # override -- otherwise reloading via SudokuTransformer(**model_config)
+            # (see evaluate.py/finetune.py) would reconstruct the wrong-sized model.
+            "model_config": model_kwargs,
             "alphabet": alphabet,
+            "alphabets": alphabets,
+            "n_puzzles": n_puzzles,
             "epochs_trained": epochs,
             "tag": tag,
         },
@@ -175,7 +233,18 @@ def train(config: Config, alphabet: str, epochs: int, tag: str) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
-    parser.add_argument("--alphabet", required=True, choices=["A", "B", "union"])
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--alphabet", choices=["A", "B", "union"], help="single/2-alphabet training")
+    group.add_argument(
+        "--alphabets",
+        help="comma-separated letters for K-way multi-alphabet training, e.g. A,B,C,D,F,G",
+    )
+    parser.add_argument(
+        "--n-puzzles",
+        type=int,
+        default=None,
+        help="only with --alphabets: puzzles per alphabet (default: full train split)",
+    )
     parser.add_argument(
         "--epochs", type=int, default=None, help="override config.train.epochs (0 = random-init baseline, no training)"
     )
@@ -184,7 +253,8 @@ def main() -> None:
 
     config = Config.load(args.config)
     epochs = args.epochs if args.epochs is not None else config.train.epochs
-    train(config, args.alphabet, epochs, args.tag)
+    alphabets = args.alphabets.split(",") if args.alphabets else None
+    train(config, args.alphabet, epochs, args.tag, alphabets=alphabets, n_puzzles=args.n_puzzles)
 
 
 if __name__ == "__main__":
