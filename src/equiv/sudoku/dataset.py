@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, Dataset, Subset
 
-from .alphabets import ALPHABETS, offset_for_letter, relabel
+from .alphabets import ALPHABETS, mixed_relabel, offset_for_letter, relabel
 
 Split = Literal["train", "val", "test"]
 _SPLIT_CODE = {"train": 0, "val": 1, "test": 2}
@@ -92,3 +92,28 @@ def multi_alphabet_dataset(
         for letter in alphabet_letters
     ]
     return ConcatDataset(views)
+
+
+class MixedAlphabetDataset(Dataset):
+    """Like SudokuDataset, but each digit's token comes from a possibly
+    different alphabet per digit_to_letter (see alphabets.mixed_relabel):
+    a combination of already-individually-trained symbols never presented
+    together as one coherent alphabet during training."""
+
+    def __init__(self, base_path: str | Path, split: Split, digit_to_letter: dict[int, str]):
+        data = np.load(base_path)
+        mask = data["split"] == _SPLIT_CODE[split]
+        self.puzzles = data["puzzles"][mask]
+        self.solutions = data["solutions"][mask]
+        self.digit_to_letter = digit_to_letter
+
+    def __len__(self) -> int:
+        return len(self.puzzles)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        puzzle = mixed_relabel(self.puzzles[idx].tolist(), self.digit_to_letter)
+        solution = mixed_relabel(self.solutions[idx].tolist(), self.digit_to_letter)
+        puzzle_t = torch.tensor(puzzle, dtype=torch.long)
+        solution_t = torch.tensor(solution, dtype=torch.long)
+        blank_mask = puzzle_t == 0
+        return puzzle_t, solution_t, blank_mask

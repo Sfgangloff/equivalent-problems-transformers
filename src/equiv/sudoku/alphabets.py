@@ -80,3 +80,27 @@ def class_range(alphabet: str, alphabets: dict[str, int] = ALPHABETS) -> tuple[i
     alphabet has the lower token offset -- not genuine model behavior."""
     offset = alphabets[alphabet]
     return offset, offset + BLOCK_SIZE
+
+
+def mixed_relabel(board: Sequence[int], digit_to_letter: dict[int, str]) -> list[int]:
+    """Map a canonical board into a "mixed" alphabet: each digit d (1-9)
+    gets the token from digit_to_letter[d]'s own alphabet block, rather
+    than every digit coming from the same alphabet. Every individual
+    symbol has (presumably) already been trained on as part of ITS OWN
+    coherent alphabet -- but this specific 9-symbol COMBINATION has never
+    been presented as a single alphabet during training. Tests whether the
+    model binds each symbol's meaning independently of which other symbols
+    happen to co-occur (real compositional generalization) as opposed to
+    recognizing/routing through one of the K known coherent alphabets as a
+    whole (a block-level shortcut that a model trained only on K disjoint,
+    internally-uniform alphabets could get away with)."""
+    return [BLANK if d == BLANK else d + offset_for_letter(digit_to_letter[d]) for d in board]
+
+
+def mixed_class_indices(digit_to_letter: dict[int, str]) -> list[int]:
+    """The (generally non-contiguous) list of 9 class indices -- one per
+    digit 1-9, in digit order -- valid under this mixed alphabet. Restrict
+    argmax to exactly these indices when scoring, the mixed-alphabet
+    analogue of class_range() (which only applies to a single, contiguous,
+    internally-uniform alphabet)."""
+    return [d - 1 + offset_for_letter(digit_to_letter[d]) for d in range(1, 10)]
