@@ -29,7 +29,7 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, Dataset, Subset
 
-from .alphabets import ALPHABETS, offset_for_letter, relabel
+from .alphabets import ALPHABETS, mixed_relabel, offset_for_letter, relabel
 
 Split = Literal["train", "val", "test"]
 _SPLIT_CODE = {"train": 0, "val": 1, "test": 2}
@@ -43,6 +43,42 @@ def _fully_represented_mask(puzzles: np.ndarray) -> np.ndarray:
     rows = np.repeat(np.arange(n), puzzles.shape[1])
     present[rows, puzzles.reshape(-1)] = True
     return present[:, 1:].sum(axis=1) == 9  # exclude column 0 (blank)
+
+
+def _candidate_fields(
+    puzzle: list[int], solution: list[int]
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+    """Shared by PointerSudokuDataset and MixedAlphabetPointerDataset:
+    given an already-relabeled (puzzle, solution) pair, build
+    (puzzle_t, solution_t, blank_mask, candidate_tokens, candidate_mask,
+    target_slot, fully_represented). Candidate construction only depends
+    on which token VALUES appear as givens, not on how they got relabeled
+    -- so it's identical for a single coherent alphabet or a mixed one."""
+    distinct_tokens = sorted(t for t in set(puzzle) if t != 0)
+    fully_represented = len(distinct_tokens) == 9
+    pad = 9 - len(distinct_tokens)
+    candidate_tokens = distinct_tokens + [0] * pad
+    candidate_mask = [True] * len(distinct_tokens) + [False] * pad
+    token_to_slot = {t: i for i, t in enumerate(distinct_tokens)}
+
+    puzzle_t = torch.tensor(puzzle, dtype=torch.long)
+    solution_t = torch.tensor(solution, dtype=torch.long)
+    blank_mask = puzzle_t == 0
+
+    # -1 sentinel: this cell's true digit isn't among the puzzle's own
+    # givens, so no candidate slot can point to it (only possible when
+    # filter_fully_represented=False -- see module docstring).
+    target_slot = [token_to_slot.get(solution[i], -1) if puzzle[i] == 0 else 0 for i in range(81)]
+
+    return (
+        puzzle_t,
+        solution_t,
+        blank_mask,
+        torch.tensor(candidate_tokens, dtype=torch.long),
+        torch.tensor(candidate_mask, dtype=torch.bool),
+        torch.tensor(target_slot, dtype=torch.long),
+        fully_represented,
+    )
 
 
 class PointerSudokuDataset(Dataset):
@@ -77,34 +113,7 @@ class PointerSudokuDataset(Dataset):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
         puzzle = relabel(self.puzzles[idx].tolist(), self.alphabet, self.alphabets)
         solution = relabel(self.solutions[idx].tolist(), self.alphabet, self.alphabets)
-
-        distinct_tokens = sorted(t for t in set(puzzle) if t != 0)
-        fully_represented = len(distinct_tokens) == 9
-        pad = 9 - len(distinct_tokens)
-        candidate_tokens = distinct_tokens + [0] * pad
-        candidate_mask = [True] * len(distinct_tokens) + [False] * pad
-        token_to_slot = {t: i for i, t in enumerate(distinct_tokens)}
-
-        puzzle_t = torch.tensor(puzzle, dtype=torch.long)
-        solution_t = torch.tensor(solution, dtype=torch.long)
-        blank_mask = puzzle_t == 0
-
-        # -1 sentinel: this cell's true digit isn't among the puzzle's own
-        # givens, so no candidate slot can point to it (only possible when
-        # filter_fully_represented=False -- see module docstring).
-        target_slot = [
-            token_to_slot.get(solution[i], -1) if puzzle[i] == 0 else 0 for i in range(81)
-        ]
-
-        return (
-            puzzle_t,
-            solution_t,
-            blank_mask,
-            torch.tensor(candidate_tokens, dtype=torch.long),
-            torch.tensor(candidate_mask, dtype=torch.bool),
-            torch.tensor(target_slot, dtype=torch.long),
-            fully_represented,
-        )
+        return _candidate_fields(puzzle, solution)
 
 
 def multi_alphabet_pointer_dataset(
@@ -137,3 +146,45 @@ def multi_alphabet_pointer_dataset(
         for letter in alphabet_letters
     ]
     return ConcatDataset(views)
+
+
+class MixedAlphabetPointerDataset(Dataset):
+    """Pointer-model analogue of dataset.MixedAlphabetDataset: each digit's
+    token comes from a possibly different known alphabet per
+    digit_to_letter (see alphabets.mixed_relabel) -- a combination of
+    already-individually-trained symbols never presented together as one
+    coherent alphabet during training. Candidate construction is
+    unaffected by mixing (see _candidate_fields): it only depends on which
+    token VALUES appear as givens in the relabeled puzzle, not how they
+    got relabeled."""
+
+    def __init__(
+        self,
+        base_path: str | Path,
+        split: Split,
+        digit_to_letter: dict[int, str],
+        filter_fully_represented: bool = False,
+    ):
+        data = np.load(base_path)
+        mask = data["split"] == _SPLIT_CODE[split]
+        puzzles = data["puzzles"][mask]
+        solutions = data["solutions"][mask]
+
+        if filter_fully_represented:
+            keep = _fully_represented_mask(puzzles)
+            puzzles = puzzles[keep]
+            solutions = solutions[keep]
+
+        self.puzzles = puzzles
+        self.solutions = solutions
+        self.digit_to_letter = digit_to_letter
+
+    def __len__(self) -> int:
+        return len(self.puzzles)
+
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        puzzle = mixed_relabel(self.puzzles[idx].tolist(), self.digit_to_letter)
+        solution = mixed_relabel(self.solutions[idx].tolist(), self.digit_to_letter)
+        return _candidate_fields(puzzle, solution)

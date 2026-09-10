@@ -5,9 +5,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 
 from src.equiv.sudoku.generate import generate_full_grid
 from src.equiv.sudoku.pointer_dataset import (
+    MixedAlphabetPointerDataset,
     PointerSudokuDataset,
     _fully_represented_mask,
     multi_alphabet_pointer_dataset,
@@ -115,3 +117,28 @@ def test_multi_alphabet_pointer_dataset_is_k_way_concatenation_of_same_subset():
     for other in masks[1:]:
         for a, b in zip(masks[0], other):
             assert (a == b).all()
+
+
+def test_mixed_alphabet_pointer_control_matches_plain_pointer_dataset():
+    # digit_to_letter mapping every digit to the SAME letter reconstructs
+    # that plain alphabet exactly -- candidate/target fields must match
+    # PointerSudokuDataset bit-for-bit (this is the control trial used by
+    # evaluate_pointer_mixed.py to sanity-check the eval mechanism itself).
+    from src.equiv.sudoku.alphabets import offset_for_letter
+
+    digit_to_letter = {d: "C" for d in range(1, 10)}
+    mixed = MixedAlphabetPointerDataset(TINY_DATA, "val", digit_to_letter, filter_fully_represented=False)
+    plain = PointerSudokuDataset(
+        TINY_DATA, "val", "C", alphabets={"C": offset_for_letter("C")}, filter_fully_represented=False
+    )
+    assert len(mixed) == len(plain)
+
+    for i in range(10):
+        m_puzzle, m_solution, m_blank, m_cand_tok, m_cand_mask, m_target, m_fr = mixed[i]
+        p_puzzle, p_solution, p_blank, p_cand_tok, p_cand_mask, p_target, p_fr = plain[i]
+        assert torch.equal(m_puzzle, p_puzzle)
+        assert torch.equal(m_solution, p_solution)
+        assert torch.equal(m_cand_tok, p_cand_tok)
+        assert torch.equal(m_cand_mask, p_cand_mask)
+        assert torch.equal(m_target, p_target)
+        assert m_fr == p_fr
