@@ -22,6 +22,7 @@ hide. `fully_represented` is still returned per-item either way.
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from typing import Literal
 
@@ -187,4 +188,60 @@ class MixedAlphabetPointerDataset(Dataset):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
         puzzle = mixed_relabel(self.puzzles[idx].tolist(), self.digit_to_letter)
         solution = mixed_relabel(self.solutions[idx].tolist(), self.digit_to_letter)
+        return _candidate_fields(puzzle, solution)
+
+
+class RandomMixPointerDataset(Dataset):
+    """Training-time data augmentation: each access draws a FRESH random
+    digit-to-letter mapping (from `source_letters`) independently, so the
+    model effectively never sees the same fixed alphabet combination twice
+    across training -- there's no fixed combination left to memorize.
+
+    Motivation: the K=6-fixed-alphabets pretraining (multi_alphabet_pointer_dataset)
+    showed real but partial transfer to a held-out alphabet (see
+    results/2026-09-09_multi_alphabet_experiments.md and the zero-shot
+    pointer-model result). This tests whether that gap is a training-
+    diversity problem -- should close under much more aggressive
+    augmentation -- or something more structural to the architecture's
+    learned computation, which should persist regardless of how many
+    distinct combinations it sees.
+
+    NOT perfectly reproducible across process configurations (a stateful
+    `random.Random` instance advances per __getitem__ call) -- fine for a
+    single-process DataLoader, which is what this repo uses throughout (no
+    num_workers>0 anywhere), but would need per-worker seeding otherwise.
+    """
+
+    def __init__(
+        self,
+        base_path: str | Path,
+        split: Split,
+        source_letters: list[str],
+        filter_fully_represented: bool = True,
+        seed: int = 0,
+    ):
+        data = np.load(base_path)
+        mask = data["split"] == _SPLIT_CODE[split]
+        puzzles = data["puzzles"][mask]
+        solutions = data["solutions"][mask]
+
+        if filter_fully_represented:
+            keep = _fully_represented_mask(puzzles)
+            puzzles = puzzles[keep]
+            solutions = solutions[keep]
+
+        self.puzzles = puzzles
+        self.solutions = solutions
+        self.source_letters = source_letters
+        self._rng = random.Random(seed)
+
+    def __len__(self) -> int:
+        return len(self.puzzles)
+
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        digit_to_letter = {d: self._rng.choice(self.source_letters) for d in range(1, 10)}
+        puzzle = mixed_relabel(self.puzzles[idx].tolist(), digit_to_letter)
+        solution = mixed_relabel(self.solutions[idx].tolist(), digit_to_letter)
         return _candidate_fields(puzzle, solution)

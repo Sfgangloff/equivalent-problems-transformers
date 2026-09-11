@@ -142,3 +142,47 @@ def test_mixed_alphabet_pointer_control_matches_plain_pointer_dataset():
         assert torch.equal(m_cand_mask, p_cand_mask)
         assert torch.equal(m_target, p_target)
         assert m_fr == p_fr
+
+
+def test_random_mix_draws_a_fresh_mapping_on_every_access():
+    from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset
+
+    letters = ["A", "B", "C", "D", "F", "G"]
+    ds = RandomMixPointerDataset(TINY_DATA, "train", letters, seed=0)
+    assert len(ds) > 0
+
+    # repeated accesses to the SAME index should (with overwhelming
+    # probability over many draws) produce different relabelings -- that's
+    # the entire point of this dataset vs. the fixed-mix alternatives above
+    puzzles_seen = {tuple(ds[0][0].tolist()) for _ in range(20)}
+    assert len(puzzles_seen) > 1
+
+
+def test_random_mix_only_draws_from_source_letters():
+    from src.equiv.sudoku.alphabets import offset_for_letter
+    from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset
+
+    letters = ["A", "C"]  # deliberately narrow pool
+    allowed_offsets = {offset_for_letter(letter) for letter in letters}
+    allowed_tokens = {0} | {o + d for o in allowed_offsets for d in range(1, 10)}
+
+    ds = RandomMixPointerDataset(TINY_DATA, "train", letters, seed=1)
+    for i in range(10):
+        puzzle_t = ds[i][0]
+        assert set(puzzle_t.tolist()) <= allowed_tokens
+
+
+def test_random_mix_respects_filter_fully_represented():
+    from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset, _fully_represented_mask
+
+    letters = ["A", "B", "C"]
+    filtered = RandomMixPointerDataset(TINY_DATA, "train", letters, filter_fully_represented=True)
+    unfiltered = RandomMixPointerDataset(TINY_DATA, "train", letters, filter_fully_represented=False)
+    assert len(filtered) <= len(unfiltered)
+
+    import numpy as np
+
+    data = np.load(TINY_DATA)
+    mask = data["split"] == 0  # "train"
+    expected_kept = int(_fully_represented_mask(data["puzzles"][mask]).sum())
+    assert len(filtered) == expected_kept
