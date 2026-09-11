@@ -65,15 +65,27 @@ def evaluate(
     dataset = PointerSudokuDataset(base_path, split, eval_alphabet, alphabets, filter_fully_represented)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-    total_blank = total_cell_correct = total_boards = total_exact_match = total_valid = 0
+    # Stratified by whether the puzzle's own givens include all 9 digits:
+    # "missing" puzzles are mechanically unsolvable by this architecture
+    # (no candidate exists for the missing digit's cells, see module
+    # docstring) -- separating them out shows how much of the overall
+    # failure rate, even on a known alphabet, is this edge case vs.
+    # something else.
+    buckets = {
+        "all": {"blank": 0, "cell_correct": 0, "boards": 0, "exact_match": 0, "valid": 0},
+        "fully_represented": {"blank": 0, "cell_correct": 0, "boards": 0, "exact_match": 0, "valid": 0},
+        "missing_digit": {"blank": 0, "cell_correct": 0, "boards": 0, "exact_match": 0, "valid": 0},
+    }
 
-    for puzzle, solution, blank_mask, candidate_tokens, candidate_mask, target_slot, _fully_represented in loader:
+    for puzzle, solution, blank_mask, candidate_tokens, candidate_mask, target_slot, fully_represented in loader:
         puzzle, solution, blank_mask = puzzle.to(device), solution.to(device), blank_mask.to(device)
         candidate_tokens, candidate_mask, target_slot = (
             candidate_tokens.to(device),
             candidate_mask.to(device),
             target_slot.to(device),
         )
+        fully_represented = fully_represented.to(device).bool()
+
         all_logits = model(puzzle, candidate_tokens, candidate_mask)
         pred_slot = all_logits[-1].argmax(dim=-1)  # (B, 81), index into candidates
         candidate_tokens_expanded = candidate_tokens.unsqueeze(1).expand(-1, 81, -1)
@@ -86,22 +98,33 @@ def evaluate(
         # be "correct" by construction, so pred_slot (always >= 0) never
         # equals -1 and they're correctly counted as wrong here.
         cell_correct = (pred_slot == target_slot) & blank_mask
-        total_cell_correct += cell_correct.sum().item()
-        total_blank += blank_mask.sum().item()
-
         exact_match = (filled == solution).all(dim=1)
-        total_exact_match += exact_match.sum().item()
-        total_boards += filled.shape[0]
+        valid = torch.tensor([is_valid_board(b) for b in filled.tolist()], device=device)
 
-        for board in filled.tolist():
-            if is_valid_board(board):
-                total_valid += 1
+        for name, board_mask in (
+            ("all", torch.ones_like(fully_represented)),
+            ("fully_represented", fully_represented),
+            ("missing_digit", ~fully_represented),
+        ):
+            cell_mask = board_mask.unsqueeze(1) & blank_mask
+            buckets[name]["blank"] += cell_mask.sum().item()
+            buckets[name]["cell_correct"] += (cell_correct & cell_mask).sum().item()
+            buckets[name]["boards"] += board_mask.sum().item()
+            buckets[name]["exact_match"] += (exact_match & board_mask).sum().item()
+            buckets[name]["valid"] += (valid & board_mask).sum().item()
+
+    def _metrics(b: dict) -> dict:
+        return {
+            "cell_accuracy": b["cell_correct"] / b["blank"] if b["blank"] else 0.0,
+            "exact_match_rate": b["exact_match"] / b["boards"] if b["boards"] else 0.0,
+            "valid_rate": b["valid"] / b["boards"] if b["boards"] else 0.0,
+            "n_boards": b["boards"],
+        }
 
     return {
-        "cell_accuracy": total_cell_correct / total_blank if total_blank else 0.0,
-        "exact_match_rate": total_exact_match / total_boards if total_boards else 0.0,
-        "valid_rate": total_valid / total_boards if total_boards else 0.0,
-        "n_boards": total_boards,
+        **_metrics(buckets["all"]),
+        "fully_represented": _metrics(buckets["fully_represented"]),
+        "missing_digit": _metrics(buckets["missing_digit"]),
     }
 
 
