@@ -1,9 +1,16 @@
 # Draft Abstract
 
-*Status: draft, based on completed experiments only (see REPORT.md).
-Experiment 3 (training-diversity augmentation) is still running; this
-abstract will be revised once its results, and any follow-on
-architecture work, are in.*
+*Status: draft, based on Experiments 0-2 only (see REPORT.md). Experiment
+3 (training-diversity augmentation) is complete and found a striking
+split result -- training diversity essentially solves compositional
+generalization over known symbols, but leaves genuine zero-shot transfer
+to an unseen symbol untouched. Deliberately not yet folded in: a
+follow-up experiment is needed first to determine whether the relevant
+variable behind that split is the SIZE of the training alphabet pool or
+simply whether training ever exposes the model to within-puzzle mixing
+at all -- the two were confounded in Experiment 3 as run. This
+abstract will be revised once that's resolved, so the "further
+directions" paragraph states the right independent variable.*
 
 ## Working title
 
@@ -21,9 +28,13 @@ concrete instances of the same problem interchangeably, so mastering one
 should transfer to solving another. We study this marker on a specific
 notion of instance equivalence: two problems are *equivalent* when one
 is obtained from the other purely by renaming its symbol alphabet,
-everything else unchanged. We test this concretely using Sudoku: given a
-puzzle P, we construct an equivalent puzzle Q by relabeling P's digit
-vocabulary.
+everything else unchanged. This gives a general recipe for testing
+knowledge transfer between equivalent instances in any symbolic domain:
+define equivalence via a checkable relabeling, then use a targeted-
+weight-transplant control to separate genuine failure to transfer
+reasoning from the confound of parameters that simply never trained. We
+instantiate this concretely using Sudoku: given a puzzle P, we construct
+an equivalent puzzle Q by relabeling P's digit vocabulary.
 
 A transformer trained to solve P reaches >99% cell accuracy, but
 transfers to Q at chance (~11%) with no assistance -- indistinguishable
