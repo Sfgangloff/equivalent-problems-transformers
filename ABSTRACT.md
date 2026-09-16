@@ -7,48 +7,51 @@ architecture work, are in.*
 
 ## Working title
 
-**Do Transformers Learn Alphabet-Agnostic Reasoning? A Case Study on
-Symbol Equivalence in Sudoku**
+**Abstract or Concrete? Probing Transformer Reasoning Through Alphabet
+Equivalence in Sudoku**
 
 ## Abstract
 
-A central question for neural reasoning systems is whether they learn
-abstract, structure-based competence or a narrower competence tied to
-the specific symbols seen during training. We study this question
-concretely using Sudoku, constructing an "equivalent" puzzle Q from any
-puzzle P by relabeling P's digit vocabulary: Q has the exact same
-combinatorial structure and solution as P, differing only in which
-tokens represent which digits. We show that a transformer trained to
-solve P with near-perfect accuracy (>99% cell accuracy) transfers to Q
-at chance level with no assistance -- performance statistically
-indistinguishable from an untrained network -- even though supplying the
-model with the known symbol correspondence (via a targeted weight
-transplant, with no retraining) recovers its original accuracy exactly.
-This shows the model's competence is real but is represented in a way
-entangled with the specific token identities it trained on, not
-abstracted away from them.
+A reasoner is *abstract* if it applies a general procedure to a
+problem's structure, indifferent to how that structure happens to be
+concretely instantiated; it is *concrete* if what it has learned is tied
+to the particular instantiation it was trained on. This admits a
+natural empirical marker: an abstract reasoner should treat different
+concrete instances of the same problem interchangeably, so mastering one
+should transfer to solving another. We study this marker on a specific
+notion of instance equivalence: two problems are *equivalent* when one
+is obtained from the other purely by renaming its symbol alphabet,
+everything else unchanged. We test this concretely using Sudoku: given a
+puzzle P, we construct an equivalent puzzle Q by relabeling P's digit
+vocabulary.
 
-We probe this entanglement from three further directions. First,
-pretraining across several known alphabets does not yield a portable,
-reusable representation: a model with its shared body frozen and only a
-new alphabet's own parameters allowed to adapt performs *worse*, given
-the same small amount of data, than an unfrozen model trained from
-scratch. Second, recombining already-individually-known symbols into
-combinations never presented as one coherent alphabet during training
-produces graded, partial degradation -- well above chance, well below
-ceiling -- rather than clean compositional generalization, with accuracy
-tracking how "coherent" the specific recombination is. Third, an
-architectural change that removes the fixed, per-alphabet output
-vocabulary entirely -- replacing it with a mechanism that selects among a
-puzzle's own visible symbols rather than classifying into a global,
-alphabet-indexed vocabulary -- yields a measurable but modest
-improvement on both the recombination task and genuine zero-shot
-transfer to an unseen alphabet, without resolving either.
+A transformer trained to solve P reaches >99% cell accuracy, but
+transfers to Q at chance (~11%) with no assistance -- indistinguishable
+from an untrained network. Yet copying P's trained per-digit weights
+directly onto Q's corresponding symbols, with no retraining, recovers
+Q's accuracy exactly. The model's procedure evidently does reuse across
+instances once told how their symbols correspond; what it lacks is any
+mechanism for discovering that correspondence itself. Reasoning, in that
+narrow sense, is abstract; recognizing that a new instance calls for it
+is not.
 
-Together these results characterize a specific, quantifiable failure of
-symbol-invariant generalization in a controlled combinatorial reasoning
-setting, isolate it from the confound of simply-never-having-seen a
-given token (via the transplant control), and identify architectural and
-training interventions that partially, but do not fully, address it --
-motivating further work on training regimes and architectures that
-explicitly separate relational structure from symbol identity.
+We probe this recognition gap three ways. Pretraining across several
+known alphabets does not close it: adapting only a new alphabet's own
+parameters, with the shared network frozen, reaches 39.5% on 1,000
+examples of an unseen alphabet -- *worse* than an unfrozen model trained
+from scratch on the same data (69.2%). Recombining already-known symbols
+into unfamiliar combinations, never presented as one coherent alphabet
+during training, yields 23-71% accuracy (mean 45%) -- well above chance,
+well below the clean transfer an abstract reasoner should show. Removing
+the model's fixed, per-alphabet output vocabulary -- replacing it with a
+mechanism that selects among a puzzle's own visible symbols -- raises
+unseen-alphabet accuracy only to 14.5% (still near chance) and produces
+zero fully valid solutions, though it raises the recombination-task mean
+to 53%.
+
+These results isolate a specific, quantifiable failure to recognize
+alphabet-equivalent instances of the same problem as such -- distinct
+from a general failure to reason -- and show that several natural fixes
+narrow, but do not close, the gap. This motivates training regimes and
+architectures that explicitly separate a problem's relational structure
+from the symbols used to present it.
