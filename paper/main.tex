@@ -6,6 +6,7 @@
 
 \usepackage{hyperref}
 \usepackage{url}
+\usepackage{graphicx}
 
 \title{Probing Transformer Reasoning Transfer \\
 Through Alphabet Equivalence}
@@ -700,6 +701,28 @@ sub-problem. The variable that matters is whether training ever exposes
 the model to within-puzzle mixing at all, not how large the alphabet
 pool is.
 
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig_mixed_alphabet.pdf}
+\caption{Per-trial cell accuracy on the mixed-alphabet compositional
+test (Tables~\ref{tab:mixed1}, \ref{tab:pointer-gate},
+\ref{tab:diversity2-mixed}, \ref{tab:disentangle-mixed}), across the
+four conditions that were evaluated on it. Each point is one of the 11
+recombination trials (the maximally mixed cycle plus 10 random draws);
+diamonds mark the coherent single-alphabet control. Training that never
+mixes alphabets within a puzzle (the two leftmost conditions) leaves
+accuracy highly sensitive to which specific recombination is tested;
+training that always mixes them (the two rightmost conditions) collapses
+that variance almost entirely, regardless of how many letters the
+training pool contains.}
+\label{fig:mixed-alphabet}
+\end{figure}
+
+Figure~\ref{fig:mixed-alphabet} makes this collapse visible across the
+full arc of conditions tested: wide, trial-dependent spread under
+never-mixed training, tight clustering near the ceiling under
+always-mixed training, in both the 25-letter and 6-letter pools.
+
 On zero-shot transfer to held-out E, this condition reaches 11.46\% cell
 accuracy and 0\% valid rate. The small positive zero-shot signal seen in
 Sections~\ref{sec:pointer} (14.47\%) and \ref{sec:diversity2} (15.85\%)
@@ -710,6 +733,23 @@ whether the weak signal in the other two conditions depends on genuine
 pool diversity or is simply run-to-run noise: each condition here is a
 single training run, so we flag this as a real open question rather than
 a resolved finding (Section~\ref{sec:limitations}).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig_zeroshot_E.pdf}
+\caption{Cell accuracy on held-out alphabet E, zero-shot, across every
+condition tested (Sections~\ref{sec:naive}--\ref{sec:disentangle}). No
+condition rises meaningfully above the $1/9$ chance floor, and valid
+rate is exactly 0\% throughout: none of pretraining diversity, an
+alphabet-agnostic output mechanism, or exposure to within-puzzle mixing
+produces a single fully consistent completion on a symbol the model
+never trained on.}
+\label{fig:zeroshot-E}
+\end{figure}
+
+Figure~\ref{fig:zeroshot-E} places all five zero-shot-on-E numbers side
+by side: cell accuracy moves within a narrow, low band across every
+intervention, while valid rate never leaves zero.
 
 \section{Discussion}
 \label{sec:discussion}

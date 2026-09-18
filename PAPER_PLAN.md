@@ -138,15 +138,18 @@ pages total so far (all sections through Method + Results; Discussion/
 Limitations/Conclusion still stubs) -- worth watching against ICLR's
 ~9-page main-text convention as those fill in and figures are added.
 
+**Done**: both flagged figures built and placed. `paper/figures/
+make_figures.py` regenerates both from `results/*.jsonl` (run with
+`source .venv/bin/activate && python paper/figures/make_figures.py` from
+the repo root). `fig_mixed_alphabet.pdf` (Figure~\ref{fig:mixed-alphabet}
+in `main.tex`, end of Section~5.5/\texttt{sec:disentangle}): per-trial
+cell accuracy across the four conditions evaluated on the mixed-alphabet
+test, makes the variance-collapse finding visually immediate.
+`fig_zeroshot_E.pdf` (Figure~\ref{fig:zeroshot-E}, same location): cell
+accuracy on held-out E across all five conditions tested, annotated with
+the flat 0% valid-rate line. Paper now compiles at 12 pages (up from 11).
+
 **Still needed**:
-- **Figures, currently zero exist.** The single highest-value figure:
-  per-trial accuracy across the mixed-alphabet eval for every condition
-  (classifier/K=6-fixed; pointer/K=6-fixed; pointer/K=25-random-mix;
-  pointer/K=6-random-mix) as a box/strip plot -- would make the
-  "variance collapse" finding visually immediate in a way the tables
-  don't. Buildable now from `results/*.jsonl`, no new experiments needed.
-  A second figure: zero-shot-on-E accuracy/valid_rate across the same
-  conditions, showing the flat 0% valid_rate line throughout.
 - Statistical rigor: still single-seed for most conditions beyond the
   few-shot sweep (3 seeds) -- see Open Decisions item 2 in REPORT.md's
   "what's left to run" list for the concrete, motivated instance of this
@@ -193,13 +196,14 @@ ablation if we run it (flag already exists in `train_pointer.py`, never
 actually run), additional per-letter breakdowns already sitting in the
 raw `results/*.jsonl` files but not in any report prose yet.
 
-## Figures/tables checklist (nothing built yet)
+## Figures/tables checklist
 
-1. Architecture diagram (classifier vs. pointer head).
+1. Architecture diagram (classifier vs. pointer head) — **still needed**,
+   TODO comment left in `main.tex`'s Method section.
 2. Mixed-alphabet per-trial accuracy across all conditions (box/strip
-   plot) — buildable now from existing data.
-3. Zero-shot-on-E accuracy/valid_rate across all conditions (bar or line
-   plot) — buildable now from existing data.
+   plot) — **done**, `figures/fig_mixed_alphabet.pdf`.
+3. Zero-shot-on-E accuracy/valid_rate across all conditions (bar plot) —
+   **done**, `figures/fig_zeroshot_E.pdf`.
 4. (If 5.6 is run) The same two plots extended with the relational-
    architecture condition.
 
