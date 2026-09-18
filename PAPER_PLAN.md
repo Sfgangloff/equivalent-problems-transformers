@@ -66,31 +66,37 @@ slightly), a bulleted contributions list (~4 items mapping to Results
 subsections 1-4/5 above).
 
 ### 3. Related Work
-**Status**: a source list exists (gathered when Experiment 2 was
-designed) but never turned into prose or checked for completeness.
-
-Known-relevant, already vetted:
-- Palm, Paquet & Winther (2018), *Recurrent Relational Networks* —
-  neural Sudoku solving via message passing (this repo's model is in
-  that lineage).
+**Status: drafted** (`paper/main.tex`), six paragraphs: neural Sudoku
+solving, compositional/systematic generalization (SCAN/COGS), symbol
+binding, pointer/copy mechanisms, symbolic mechanisms in pretrained
+LLMs, and an explicit positioning paragraph. All 8 citations verified
+against actual publication venues (not from memory) and confirmed to
+resolve/format correctly via a real `pdflatex`/`bibtex` compile
+(`references.bib`):
+- Palm, Paquet & Winther (2018), *Recurrent Relational Networks*.
 - Webb, Sinha & Cohen (2021), *Emergent Symbols through Binding in
-  External Memory* — the closest direct precedent for the recognition-
-  gap framing.
-- Altabaa, Webb, Cohen & Lafferty (2023), *Abstractors* — the likely
-  next-architecture citation if we pursue that experiment.
+  External Memory* — closest direct precedent for the recognition-gap
+  framing.
+- Altabaa, Webb, Cohen & Lafferty, *Abstractors* — published at
+  **ICLR 2024** (corrected from an earlier "2023" mislabeling, its
+  arXiv-preprint year).
 - Vinyals, Fortunato & Jaitly (2015), *Pointer Networks*; See, Liu &
   Manning (2017), *Get To The Point* — the pointer/copy-mechanism
-  lineage our Experiment 2 architecture sits in.
-- Webb et al. (2025), *Emergent Symbolic Mechanisms Support Abstract
-  Reasoning in LLMs* — shows this question is live for pretrained LLMs
-  too, good framing material for the intro or discussion.
+  lineage the Section 5.3 architecture sits in.
+- Yang, Campbell, Huang, Wang, Cohen & Webb (2025), *Emergent Symbolic
+  Mechanisms Support Abstract Reasoning in LLMs* — corrected from an
+  earlier "Webb et al. 2025" mislabeling; Webb is the *last* author.
+- Lake & Baroni (2018, ICML), the SCAN benchmark, and Kim & Linzen
+  (2020, EMNLP), COGS — the systematic/compositional-generalization
+  literature pass, now done; used to sharpen how our narrower question
+  (same combination, relabeled, vs. novel combinations of familiar
+  parts) differs from theirs.
 
-**Needed**: a literature pass specifically on (a) systematic/
-compositional generalization benchmarks (SCAN, COGS, and similar — not
-yet searched at all), (b) any existing work that already does
-"equivalence via relabeling" as a generalization probe outside this
-project (worth checking novelty claims aren't overstated), (c) proper
-citation formatting once a venue/style is picked.
+Novelty check on "equivalence via relabeling as a generalization probe"
+done via web search (not exhaustive): no direct prior use of this exact
+combination (checkable relabeling + weight-transplant control) was
+found; the Positioning paragraph states this as a modest claim about
+the specific combination, not any single piece in isolation.
 
 ### 4. Problem Setup and Method
 **Argues**: formal equivalence definition, the transplant control, the

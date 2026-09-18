@@ -35,9 +35,16 @@ form it was trained on, rather than to the structure underneath. This
 distinction is central to any claim that a learned system reasons rather
 than merely fits patterns in its training distribution, but such claims
 are frequently made without a test that could actually distinguish the
-two possibilities. % TODO: cite prior framings of systematic/compositional
-% generalization in neural networks (e.g. SCAN/COGS-style benchmarks) --
-% literature pass not yet done, see PAPER_PLAN.md.
+two possibilities. Benchmarks such as SCAN \citep{lake2018generalization}
+and COGS \citep{kim2020cogs} test a closely related property --
+generalizing to unseen \emph{combinations} of familiar components -- and
+have repeatedly found large gaps between in-distribution and
+compositional-generalization accuracy in standard neural architectures.
+We study a different, narrower notion of generalization: not new
+combinations of familiar parts, but the exact same combination presented
+under a purely relabeled vocabulary, which isolates a more basic
+question -- does the model recognize the relabeled instance as the
+problem it already knows how to solve at all.
 
 We propose a concrete, checkable operationalization of this distinction.
 An abstract reasoner should treat two different instances of the same
@@ -121,22 +128,80 @@ while transfer to a genuinely novel symbol is not.
 % disentangling experiment's result, see PAPER_PLAN.md Section 5.5).
 
 \section{Related Work}
-% TODO: not yet drafted. Source list (bibliographic details verified,
-% see references.bib): palm2018recurrent (neural Sudoku solving via
-% relational message passing -- this repo's model architecture is in
-% that lineage), webb2021emergent (closest direct precedent for the
-% recognition-gap framing: relational, not identity-based, computation
-% generalizes near-perfectly to novel entities), altabaa2024abstractors
-% (explicit relational-attention architecture -- candidate future-work
-% citation, see Discussion), vinyals2015pointer and see2017get (the
-% pointer/copy-mechanism lineage the Section~\ref{sec:results}.3
-% architecture sits in), yang2025emergent (shows this exact question is
-% live for pretrained LLMs too -- good framing material here or in
-% Discussion). Still needed: a pass on systematic/compositional
-% generalization benchmarks (SCAN, COGS, and similar) not yet searched
-% at all, and a check that "equivalence via relabeling" as a
-% generalization probe is not already used elsewhere under a different
-% name.
+
+\paragraph{Neural Sudoku solving.} \citet{palm2018recurrent} introduced
+Recurrent Relational Networks, which solve Sudoku via iterative message
+passing between cell-level representations on a graph -- the
+architectural lineage our encoder-based model, and its optional
+iterative-refinement mechanism, belong to. That work, and subsequent
+neural combinatorial solvers, focus on solving accuracy within a single
+fixed vocabulary; we instead hold solving accuracy on the training
+vocabulary fixed near ceiling throughout, and ask what happens under a
+symbol relabeling that leaves the underlying combinatorial problem
+completely unchanged.
+
+\paragraph{Compositional and systematic generalization.} SCAN
+\citep{lake2018generalization} and COGS \citep{kim2020cogs} test whether
+sequence models generalize to novel \emph{combinations} of familiar
+primitives, and both find persistent, large gaps between in-distribution
+and compositional accuracy across a range of architectures. Our question
+is narrower and, in a specific sense, easier: we do not ask the model to
+combine familiar parts in new ways, only to recognize the exact same
+combination it was trained on, wearing a different vocabulary. That we
+still find a total failure to recognize this -- indistinguishable from an
+untrained network -- suggests the difficulty compositional-generalization
+benchmarks document may in part reflect an even more basic failure to
+abstract away from surface symbol identity at all.
+
+\paragraph{Symbol binding and variable binding.} \citet{webb2021emergent}
+is the closest direct precedent for our framing: their Emergent Symbol
+Binding Network uses an indirection mechanism over external memory that
+lets learned rules generalize near-perfectly to entirely novel filler
+entities, given only a handful of examples, because its computation
+operates on relations between representations rather than their
+identity. \citet{altabaa2024abstractors} formalize a version of this idea
+for Transformers directly, using a relational cross-attention mechanism
+architecturally constrained to depend only on similarity between
+representations, never their content. Our Section~\ref{sec:results}.3
+pointer-based redesign is a much simpler, less architecturally
+constrained step in the same direction -- removing a fixed,
+identity-keyed output vocabulary rather than building in an explicit
+relational bottleneck -- and our results (helping substantially with one
+sub-problem, only marginally with the other) suggest the stronger,
+more explicit mechanism of \citet{altabaa2024abstractors} may be
+necessary where our simpler intervention is not sufficient (see
+Section~\ref{sec:results}.4 and the Discussion).
+
+\paragraph{Pointer and copy mechanisms.} Our Section~\ref{sec:results}.3
+architecture, which predicts a blank cell's value by selecting among the
+symbols visible elsewhere in the same puzzle instance rather than
+classifying into a fixed global vocabulary, is a direct application of
+Pointer Networks \citep{vinyals2015pointer} and pointer-generator copy
+mechanisms \citep{see2017get} to this setting. Both were originally
+motivated by output spaces that vary with the input (sorting an input
+sequence; naming a rare word from the source document) rather than by
+the alphabet-equivalence question we study; we use the same mechanism
+for a different purpose, to remove the specific structural obstacle -- a
+per-alphabet output vocabulary -- that makes zero-shot transfer to a new
+alphabet impossible by construction in the naive classifier design.
+
+\paragraph{Symbolic mechanisms in pretrained language models.}
+Contemporaneously with this direction of work, \citet{yang2025emergent}
+identify an emergent symbolic architecture inside pretrained large
+language models -- symbol abstraction, symbolic induction, and retrieval
+heads operating on abstract variables rather than raw tokens -- that
+supports abstract reasoning in a related sense. Our study is
+complementary: rather than probing an existing large pretrained model,
+we train small transformers from scratch under fully controlled data,
+isolating the specific alphabet-relabeling manipulation from every other
+confound a pretrained model's training history would introduce.
+
+\paragraph{Positioning.} To our knowledge, the specific combination we
+use -- defining instance equivalence via a checkable symbol relabeling,
+and a weight-transplant control that isolates genuine
+reasoning-transfer failure from the confound of never-trained
+parameters -- has not been used together in this form, though each piece
+draws on the established ideas above.
 
 \section{Problem Setup and Method}
 % TODO: not yet drafted. Content exists as prose in REPORT.md's "Common
