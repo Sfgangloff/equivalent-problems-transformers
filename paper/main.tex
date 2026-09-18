@@ -1,0 +1,238 @@
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+
+\title{Abstract or Concrete? Probing Transformer Reasoning \\
+Through Alphabet Equivalence in Sudoku}
+
+% Double-blind review: authors must not appear in the submitted version.
+% \iclrfinalcopy remains commented out until the camera-ready version.
+\author{Anonymous authors \\ Paper under double-blind review}
+
+%\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+A reasoner is \emph{abstract} if it applies a general procedure to a
+problem's structure, indifferent to how that structure is concretely
+instantiated; it is \emph{concrete} if what it learned is tied to the
+particular instantiation trained on. This admits a marker: an abstract
+reasoner should transfer mastery of one problem instance to another. We
+study equivalence via alphabet renaming, and give a general recipe for
+testing transfer under it: a checkable relabeling, plus a
+weight-transplant control (copying trained per-symbol weights onto the
+new instance, no retraining) isolating genuine transfer failure from
+never-trained parameters. We instantiate this with Sudoku: given puzzle
+$P$, construct equivalent puzzle $Q$ by relabeling $P$'s digits.
+
+A transformer trained on $P$ reaches $>$99\% cell accuracy but transfers
+to $Q$ at chance ($\sim$11\%) unaided -- indistinguishable from an
+untrained network -- while the transplant control recovers $Q$'s
+accuracy exactly. Reasoning, in that narrow sense, is abstract;
+recognizing a new instance calls for it is not.
+
+We probe this gap three ways. Freezing the shared network and adapting
+only a new alphabet's parameters reaches 39.5\% on 1,000 examples of an
+unseen alphabet -- worse than training from scratch on the same data
+(69.2\%). Recombining known symbols into unfamiliar combinations yields
+23--71\% accuracy (mean 45\%), well above chance but far from clean
+transfer. Removing the model's fixed, per-alphabet output vocabulary for
+a mechanism that selects among a puzzle's visible symbols raises
+unseen-alphabet accuracy only to 14.5\%, with zero fully valid
+solutions, versus 53\% on the recombination task.
+
+These results isolate a specific, quantifiable failure to recognize
+alphabet-equivalent instances as such, distinct from a general failure
+to reason, and show several natural fixes narrow but do not close the
+gap.
+\end{abstract}
+
+\section{Introduction}
+
+A model that has learned to solve a problem can be said to reason
+\emph{abstractly} about it if the procedure it applies operates on the
+problem's structure, indifferent to how that structure happens to be
+dressed up in a particular presentation. It reasons only
+\emph{concretely} if what it has learned is tied to the specific surface
+form it was trained on, rather than to the structure underneath. This
+distinction is central to any claim that a learned system reasons rather
+than merely fits patterns in its training distribution, but such claims
+are frequently made without a test that could actually distinguish the
+two possibilities. % TODO: cite prior framings of systematic/compositional
+% generalization in neural networks (e.g. SCAN/COGS-style benchmarks) --
+% literature pass not yet done, see PAPER_PLAN.md.
+
+We propose a concrete, checkable operationalization of this distinction.
+An abstract reasoner should treat two different instances of the same
+underlying problem interchangeably: having mastered one, it should
+transfer to solving the other, since its procedure does not depend on
+which particular instantiation it happens to face. We instantiate
+``different instances of the same problem'' through the simplest
+transform that leaves a problem's structure completely intact while
+changing its surface form entirely: renaming its symbol alphabet. Two
+problems $P$ and $Q$ are \emph{equivalent} under this definition when
+$Q$ is obtained from $P$ purely by relabeling which symbols represent
+which underlying roles -- nothing about the structure, constraints, or
+solution changes, only the names used to present it.
+
+This gives more than a single empirical test: it gives a general recipe
+applicable to any symbolic or combinatorial domain with an analogous
+notion of relabeling. The recipe has two parts. First, define
+equivalence via a checkable relabeling, and measure whether a model
+trained on one instance transfers, unaided, to an equivalent one.
+Second -- and this is the part that is easy to get wrong -- use a
+targeted control to separate two failure modes that a naive transfer
+evaluation cannot distinguish on its own. A model may fail on a new
+instance either because its underlying reasoning does not generalize, or
+simply because the new instance's symbols were never seen during
+training, so any parameters associated with them are untrained noise
+regardless of how good the model's reasoning otherwise is. We isolate
+the second explanation with a \emph{weight-transplant} control: after
+training, we copy the parameters associated with each of $P$'s symbols
+directly onto the parameters for $Q$'s corresponding symbols, using the
+known-by-construction correspondence, with no further training. This
+tells us how the model would perform on $Q$ if it already knew the
+correspondence between the two instances' symbols -- precisely the
+information a naive zero-shot evaluation cannot provide on its own.
+
+We instantiate this recipe concretely using Sudoku: a well-defined,
+verifiable, and cheaply generated combinatorial puzzle whose solution is
+invariant to any consistent renaming of its 9 symbols, making it a clean
+testbed for this question. Training a transformer to solve Sudoku
+puzzles written in one symbol alphabet, we find that it transfers to an
+equivalent puzzle in a different alphabet at chance level -- performance
+indistinguishable from a network that was never trained at all -- even
+though the weight-transplant control recovers its original accuracy
+\emph{exactly}. This is the paper's central result: the model's
+procedure does reuse across equivalent instances once it is told how
+their symbols correspond; what it lacks is any mechanism for discovering
+that correspondence on its own. We then probe this recognition gap along
+three further axes -- pretraining diversity, an architectural change
+that removes a specific structural bottleneck, and training-time data
+diversity at a much larger scale -- and show that each narrows, but does
+not close, the gap, with a further finding that training diversity
+resolves the gap into two distinct sub-problems with different answers:
+recombining already-known symbols is solved by sufficient diversity,
+while transfer to a genuinely novel symbol is not.
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item An operationalized, reusable methodology for testing knowledge
+  transfer between equivalent instances of a symbolic problem, including
+  a weight-transplant control that isolates genuine reasoning-transfer
+  failure from the confound of never-trained parameters.
+  \item Applied to Sudoku, we show naive transfer across
+  alphabet-equivalent puzzles fails completely -- statistically
+  indistinguishable from an untrained network -- while the transplant
+  control recovers full performance exactly, demonstrating the failure
+  is one of recognition, not of reusable computation (Section~\ref{sec:results}.1).
+  \item We show this recognition gap persists across two further natural
+  interventions: pretraining diversity across several known alphabets,
+  and a redesigned architecture that removes a specific structural
+  bottleneck that prevents zero-shot generalization by construction --
+  each narrows but does not close the gap (Section~\ref{sec:results}.2--3).
+  \item We show training-time data diversity resolves this gap into two
+  distinct sub-problems with different answers: recombining
+  already-known symbols in novel combinations is essentially solved by
+  sufficient training diversity, while transfer to a genuinely novel,
+  never-seen symbol remains unsolved by every intervention tested
+  (Section~\ref{sec:results}.4).
+\end{itemize}
+
+% TODO: roadmap paragraph and exact section cross-references, to be
+% finalized once the Results section numbering is settled (pending the
+% disentangling experiment's result, see PAPER_PLAN.md Section 5.5).
+
+\section{Related Work}
+% TODO: not yet drafted. Source list (bibliographic details verified,
+% see references.bib): palm2018recurrent (neural Sudoku solving via
+% relational message passing -- this repo's model architecture is in
+% that lineage), webb2021emergent (closest direct precedent for the
+% recognition-gap framing: relational, not identity-based, computation
+% generalizes near-perfectly to novel entities), altabaa2024abstractors
+% (explicit relational-attention architecture -- candidate future-work
+% citation, see Discussion), vinyals2015pointer and see2017get (the
+% pointer/copy-mechanism lineage the Section~\ref{sec:results}.3
+% architecture sits in), yang2025emergent (shows this exact question is
+% live for pretrained LLMs too -- good framing material here or in
+% Discussion). Still needed: a pass on systematic/compositional
+% generalization benchmarks (SCAN, COGS, and similar) not yet searched
+% at all, and a check that "equivalence via relabeling" as a
+% generalization probe is not already used elsewhere under a different
+% name.
+
+\section{Problem Setup and Method}
+% TODO: not yet drafted. Content exists as prose in REPORT.md's "Common
+% setup" section and at publication-appropriate precision in code
+% docstrings (sudoku/alphabets.py, sudoku/pointer_dataset.py,
+% model/pointer_transformer.py) -- converting this section is mostly
+% compression plus a formal-notation pass, not new material. Needs one
+% figure (not yet created): a diagram contrasting the two architectures
+% (fixed per-alphabet classifier head vs. per-instance pointer
+% selection).
+
+\section{Experiments and Results}
+\label{sec:results}
+% TODO: not yet drafted. Six subsections planned, per PAPER_PLAN.md's
+% narrative arc:
+%   \ref{sec:results}.1 Naive transfer + transplant control (Exp 0) --
+%     complete, written in results/2026-09-07_two_alphabet_sudoku.md
+%     and REPORT.md.
+%   \ref{sec:results}.2 Diversity alone doesn't close it: few-shot
+%     freeze + mixed-alphabet compositional test (Exp 1) -- complete,
+%     written in results/2026-09-09_multi_alphabet_experiments.md and
+%     REPORT.md.
+%   \ref{sec:results}.3 Removing the architectural bottleneck (Exp 2)
+%     -- complete, written in REPORT.md.
+%   \ref{sec:results}.4 Training-diversity split: compositional vs.
+%     genuine zero-shot (Exp 3) -- complete, written in REPORT.md.
+%   \ref{sec:results}.5 Disentangling pool size vs. mixing-exposure --
+%     ran on Leonardo (job 58017245, training complete: 98.83% val cell
+%     accuracy); evaluation jobs 58097892 (zero-shot) and 58097893
+%     (mixed-alphabet) submitted, results pending as of this writing.
+% Two figures needed (currently zero exist, both buildable now from
+% results/*.jsonl without new experiments): (1) per-trial accuracy
+% across the mixed-alphabet eval for every condition run so far
+% (box/strip plot -- would make the "variance collapse" finding from
+% Exp 3 immediate); (2) zero-shot-on-E accuracy/valid\_rate across the
+% same conditions (bar or line plot, showing the flat 0\% valid\_rate
+% throughout).
+
+\section{Discussion}
+% TODO: not yet drafted. Exists as prose in REPORT.md's Synthesis
+% section at close-to-paper quality -- needs the disentangling result
+% (\ref{sec:results}.5) folded in once available, connection back to
+% Section 1's abstract/concrete framing, and a forward-looking paragraph
+% on the Abstractors-style relational architecture
+% \citep{altabaa2024abstractors} as the natural next step (resolved as
+% future work, not a completed experiment in this paper -- see
+% PAPER_PLAN.md Open Decisions). Also discusses the (currently
+% unverified) vector-equality/duplicate-detection hypothesis for the
+% small residual zero-shot signal observed in \ref{sec:results}.3--4,
+% explicitly flagged as speculative pending an interpretability probe.
+
+\section{Limitations}
+% TODO: not yet drafted. Material exists as scattered caveats throughout
+% REPORT.md: single small transformer trained from scratch, single task
+% domain (Sudoku-only is a deliberate scope choice, not an oversight --
+% see PAPER_PLAN.md Open Decisions); only one equivalence transform
+% tested (alphabet relabeling); the pointer architecture's structural
+% blind spot on the $\sim$0.8\% of puzzles missing a digit from their
+% givens; single seed per major training condition.
+
+\section{Conclusion}
+% TODO: not yet drafted; should be straightforward once Discussion is
+% finalized.
+
+\bibliography{references}
+\bibliographystyle{iclr2026_conference}
+
+\end{document}
