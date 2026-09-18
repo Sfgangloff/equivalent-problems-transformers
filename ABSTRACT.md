@@ -32,7 +32,7 @@ particular instantiation trained on. This gives a testable marker: an
 abstract reasoner should transfer mastery of one problem instance to
 another. We study equivalence via alphabet renaming, and test transfer
 using a weight-transplant control -- copying trained per-symbol weights
-onto the new instance, no retraining -- distinguishing genuine reasoning
+onto the new instance without retraining -- distinguishing genuine reasoning
 failure from symbols never trained on. We instantiate this with Sudoku,
 where an equivalent puzzle is any relabeling of its digits.
 
