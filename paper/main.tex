@@ -34,7 +34,7 @@ A model that has learned to solve a problem can be said to reason
 problem's structure, indifferent to the particular form in which that
 structure is presented. It reasons only
 \emph{concretely} if what it has learned is tied to the specific surface
-form it was trained on, rather than to the structure underneath. This
+form it was trained on, instead of to the structure underneath. This
 distinction is central to any claim that a learned system reasons rather
 than merely fits patterns in its training distribution, but such claims
 are frequently made without a test that could actually distinguish the
@@ -164,7 +164,7 @@ is the closest direct precedent for our framing: their \emph{Emergent
 Symbol Binding Network} uses an indirection mechanism over external memory that
 lets learned rules generalize near-perfectly to entirely novel filler
 entities, given only a handful of examples, because its computation
-operates on relations between representations rather than their
+operates on relations between representations instead of their
 identity. \citet{altabaa2024abstractors} formalize a version of this idea
 for Transformers directly, using a relational cross-attention mechanism
 architecturally constrained to depend only on similarity between
@@ -180,12 +180,12 @@ Section~\ref{sec:diversity2} and Section~\ref{sec:discussion}).
 
 \paragraph{Pointer and copy mechanisms.} Our Section~\ref{sec:pointer}
 architecture, which predicts a blank cell's value by selecting among the
-symbols visible elsewhere in the same puzzle instance rather than
+symbols visible elsewhere in the same puzzle instance instead of
 classifying into a fixed global vocabulary, is a direct application of
 Pointer Networks \citep{vinyals2015pointer} and pointer-generator copy
 mechanisms \citep{see2017get} to this setting. Both were originally
 motivated by output spaces that vary with the input (sorting an input
-sequence; naming a rare word from the source document) rather than by
+sequence; naming a rare word from the source document) instead of by
 the alphabet-equivalence question we study; we use the same mechanism
 for a different purpose, to remove the specific structural obstacle (a
 per-alphabet output vocabulary) that makes zero-shot transfer to a new
@@ -195,9 +195,9 @@ alphabet impossible by construction in the naive classifier design.
 Contemporaneously with this direction of work, \citet{yang2025emergent}
 identify an emergent symbolic architecture inside pretrained large
 language models (symbol abstraction, symbolic induction, and retrieval
-heads operating on abstract variables rather than raw tokens) that
+heads operating on abstract variables instead of raw tokens) that
 supports abstract reasoning in a related sense. Our study is
-complementary: rather than probing an existing large pretrained model,
+complementary: instead of probing an existing large pretrained model,
 we train small transformers from scratch under fully controlled data,
 isolating the specific alphabet-relabeling manipulation from every other
 confound a pretrained model's training history would introduce.
@@ -281,7 +281,7 @@ puzzle's own givens, not merely somewhere in the completed grid; measured
 directly on our generator, 0.80\% of puzzles violate this. We filter such
 puzzles out for training, so every training target is well-defined, and
 deliberately leave them in for evaluation, so reported numbers reflect
-this real (if small) architectural limitation rather than hiding it.
+this real (if small) architectural limitation instead of hiding it.
 
 \begin{figure}[t]
 \centering
@@ -485,7 +485,7 @@ Accuracy is far above the roughly 11\% chance level but far below the
 99\% ceiling, and it tracks how coherent the specific mix is: dominated
 by one alphabet scores high, spread evenly across many scores low. Both
 results point the same way: the model has partial, graded compositional
-ability rather than a clean, disentangled binding of each symbol to its
+ability instead of a clean, disentangled binding of each symbol to its
 meaning.
 
 \subsection{Does removing the output-vocabulary bottleneck help?}
@@ -573,7 +573,7 @@ from 23.2\% to 34.4\%. But the improvement is uneven; 4 of the 11
 non-control trials get worse, including the most systematic one
 (maximally mixed cycle). The architecture change helps more with the
 easier question (recombining known symbols) than the harder one (a
-truly novel symbol), in both cases by a modest rather than decisive
+truly novel symbol), in both cases by a modest instead of decisive
 margin.
 
 One candidate explanation for why the pointer head shows any positive
@@ -764,7 +764,7 @@ Valid rate stays at exactly 0\% across all three conditions, so the
 headline conclusion is unchanged either way, but this leaves open
 whether the weak signal in the other two conditions depends on genuine
 pool diversity or is simply run-to-run noise: each condition here is a
-single training run, so we flag this as a real open question rather than
+single training run, so we flag this as a real open question instead of
 a resolved finding (Section~\ref{sec:limitations}).
 
 \begin{figure}[h]
@@ -791,7 +791,7 @@ A single failure mode appears from every angle we tested, and it
 resolves into two sub-problems with different answers.
 
 \textbf{Recombining known symbols is solved by training diversity,
-specifically by mixing exposure rather than pool size.}
+specifically by mixing exposure instead of pool size.}
 Sections~\ref{sec:diversity1} and \ref{sec:pointer} both showed graded,
 partial degradation on recombined-alphabet puzzles under training that
 never mixed alphabets within a puzzle; Section~\ref{sec:diversity2}
@@ -848,7 +848,7 @@ work.
 Given that no data-side intervention touched the harder half of the gap,
 the most promising next step is architectural: a mechanism that
 constrains computation to operate on similarity between representations
-by construction, rather than leaving that as one option among others the
+by construction, instead of leaving that as one option among others the
 way the pointer head in Section~\ref{sec:pointer} does. Abstractors
 \citep{altabaa2024abstractors} implement exactly this idea for
 Transformers through relational cross-attention, and are a natural
@@ -865,7 +865,7 @@ manipulation could add. Section~\ref{sec:related} discusses one recent
 result suggesting a related distinction is visible inside pretrained
 LLMs too \citep{yang2025emergent}, but we did not test this directly.
 
-We deliberately study one domain, Sudoku, rather than several; this
+We deliberately study one domain, Sudoku, instead of several; this
 keeps every comparison across experiments over identical underlying
 puzzles, at the cost of not yet knowing how much of what we find is
 specific to this domain's particular constraint structure. Within that
@@ -877,7 +877,7 @@ other transforms produce the same recognition gap is untested.
 The pointer head (Section~\ref{sec:pointer}) has a structural blind
 spot: it can only predict a digit whose token already appears among a
 puzzle's own givens, and 0.80\% of puzzles from our generator have at
-least one digit that does not. We measured this directly rather than
+least one digit that does not. We measured this directly instead of
 assuming it away, filtered it out of training, and left it in for
 evaluation, but the architecture is mechanically unable to solve those
 puzzles regardless of how well it has otherwise learned.
@@ -887,7 +887,7 @@ the few-shot sweep in Section~\ref{sec:diversity1} is the exception, at
 3 seeds. The residual zero-shot cell-accuracy signal discussed in
 Section~\ref{sec:discussion} moved across a narrow, non-monotonic range
 between conditions, and we cannot currently rule out that this
-particular pattern is run-to-run variation rather than a real effect of
+particular pattern is run-to-run variation instead of a real effect of
 pool diversity; every condition's valid rate, our primary and more
 decisive metric, is unaffected by this uncertainty, since it stayed at
 exactly 0\% throughout.
@@ -910,7 +910,7 @@ symbol the model has never encountered at all, was untouched by every
 architectural and data-side intervention we tried. That split result is
 itself the clearest signal for where to look next: an architecture that
 constrains its computation to operate on relations between
-representations, rather than merely allowing it to, is now the
+representations, instead of merely allowing it to, is now the
 best-motivated remaining direction.
 
 \bibliography{references}
@@ -959,7 +959,7 @@ encoder and positional embeddings are frozen via
 \texttt{requires\_grad\_(False)}, and the token-embedding and
 classifier-head rows belonging to alphabets other than the target one are
 kept fixed by masking their gradient at the moment autograd produces it
-(a backward hook), rather than by zeroing gradients after the fact. This
+(a backward hook), instead of by zeroing gradients after the fact. This
 matters because AdamW's weight decay shrinks every parameter on every
 step regardless of its gradient, so a masked-gradient row would still
 drift under nonzero weight decay; the finetuning optimizer therefore uses
@@ -973,7 +973,7 @@ GPU per job. For Section~\ref{sec:naive}'s single- and union-alphabet
 training, we have measured wall-clock time directly: 52 minutes each for
 the two single-alphabet runs and 1 hour 43 minutes for the union run
 ($\approx 3.5$ GPU-hours together). For every other job, Table~\ref{tab:compute}
-reports the wall-clock budget requested at submission time rather than
+reports the wall-clock budget requested at submission time instead of
 measured usage; where we do have measured numbers (Section~\ref{sec:naive}),
 actual usage came in well under the requested budget, so the totals below
 should be read as an upper bound on total compute, not an exact
