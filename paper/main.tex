@@ -69,8 +69,10 @@ Second, use a targeted control to separate two failure modes that a naive transf
 evaluation cannot distinguish on its own. A model may fail on a new
 instance either because its underlying reasoning does not generalize, or
 simply because the new instance's symbols were never seen during
-training, so any parameters associated with them are untrained noise
-regardless of how good the model's reasoning otherwise is. We isolate
+training, so any parameters associated with them remain at their random
+initialization regardless of how good the model's reasoning otherwise
+is -- whether that alone is enough to prevent any useful signal is an
+empirical question, not one we assume the answer to. We isolate
 the second explanation with a \emph{weight-transplant} control: after
 training, we copy the parameters associated with each of $P$'s symbols
 directly onto the parameters for $Q$'s corresponding symbols, using the
