@@ -7,8 +7,11 @@ land).
 
 This is a section-by-section outline: what each section argues, what
 material already exists for it (and where), and what's still needed.
-Three genuine open decisions are flagged inline rather than blocking this
-draft — see **Open decisions** at the end.
+Target venue is **ICLR**, main track, Sudoku-only scope (no second task
+domain), and the Abstractors-style architecture experiment is future
+work rather than required before submission -- all three scope
+decisions are now resolved; see **Open decisions** at the end for the
+record.
 
 ## Narrative arc
 
@@ -122,7 +125,10 @@ one-paragraph interpretation.
 | 5.3 Removing the architectural bottleneck | Exp 2 | Complete, written (`REPORT.md`) |
 | 5.4 Training-diversity split (compositional vs. genuine zero-shot) | Exp 3 | Complete, written (`REPORT.md`) |
 | 5.5 Disentangling pool size vs. mixing-exposure | K=6-mixed run | **Running now** (job `58017245` on Leonardo) |
-| 5.6 Explicit relational architecture (Abstractors-style) | Not started | Open decision — see below |
+
+Section 5.6 (explicit relational architecture, Abstractors-style) is
+**not** a Results subsection -- resolved as future work, see Discussion
+and Open decisions.
 
 **Needed beyond writing**:
 - **Figures, currently zero exist.** The single highest-value figure for
@@ -142,7 +148,7 @@ one-paragraph interpretation.
   but is a real compute/time cost — see open decisions.
 
 ### 6. Discussion
-**Argues**: synthesizes 5.1-5.5 (and 5.6 if run) into the two-part
+**Argues**: synthesizes 5.1-5.5 into the two-part
 picture — a "compositional coverage" sub-problem that training diversity
 solves, and a "genuine novelty" sub-problem that nothing tried so far
 touches — and connects back to the abstract/concrete framing from the
@@ -191,21 +197,19 @@ raw `results/*.jsonl` files but not in any report prose yet.
 
 ## Open decisions
 
-1. **Target venue and page budget.** "Main track" was stated as the
-   ambition; assumed NeurIPS/ICML/ICLR-style (~9 pages + references,
-   appendix unlimited) for this outline, but not confirmed. Affects how
-   much of Sections 5/7 can stay in the main body vs. move to appendix.
-2. **Is the Abstractors-style architecture (5.6) required before
-   submission, or future work?** It's the natural next experiment given
-   5.4/5.5's finding that no data-side intervention touches the
-   genuine-zero-shot gap, but it's a real architecture build (comparable
-   scope to Experiment 2), not a quick follow-up. Worth deciding once
-   5.5's result is in, since a strong disentangling result might make a
-   compelling paper even without it (framed as "and here's the natural
-   next architectural step" rather than a completed result).
-3. **Is a second task domain beyond Sudoku required before submission?**
-   Flagged earlier as likely necessary for main-track competitiveness
-   (elevates from "Sudoku case study" to "general phenomenon"). Real
-   scope: a full second data generator + model adaptation, comparable to
-   the original MVP's build. Worth an explicit yes/no rather than
-   assuming, given the size of the commitment.
+1. ~~Target venue and page budget.~~ **Resolved: ICLR.** Main track,
+   double-blind (so the repo/commits will need an anonymization pass
+   before submission -- not urgent now, but worth remembering later).
+   ICLR's exact page limit varies slightly by year; plan around the
+   ~9-page main-text convention until closer to the actual deadline, at
+   which point re-check the current year's call for papers.
+2. ~~Is the Abstractors-style architecture (5.6) required before
+   submission?~~ **Resolved: no, future work.** Section 5.6 becomes a
+   forward-looking paragraph in Discussion/Conclusion (the natural next
+   architectural step, motivated by 5.4/5.5's finding that no data-side
+   intervention touches the genuine-zero-shot gap) rather than a
+   completed experiment in Results.
+3. ~~Is a second task domain beyond Sudoku required?~~ **Resolved: no,
+   not for now.** Scope stays Sudoku-only. The Limitations section
+   (Section 7) should state this as a deliberate scope choice (a
+   controlled single-domain study) rather than an oversight.
