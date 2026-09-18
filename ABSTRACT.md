@@ -22,8 +22,7 @@ one of the existing three probes rather than simply appending.*
 
 ## Working title
 
-**Abstract or Concrete? Probing Transformer Reasoning Through Alphabet
-Equivalence in Sudoku**
+**Probing Transformer Reasoning Transfer Through Alphabet Equivalence**
 
 ## Abstract
 

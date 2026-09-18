@@ -1,9 +1,9 @@
 # Paper Plan
 
-Working title: **Abstract or Concrete? Probing Transformer Reasoning
-Through Alphabet Equivalence in Sudoku** (see `ABSTRACT.md` — title/
-abstract may still change as the disentangling experiment and beyond
-land).
+Title (settled): **Probing Transformer Reasoning Transfer Through
+Alphabet Equivalence** — deliberately doesn't name Sudoku: the title
+leads with the general question, scope is disclosed honestly in the
+abstract and Limitations rather than the title's job.
 
 This is a section-by-section outline: what each section argues, what
 material already exists for it (and where), and what's still needed.
