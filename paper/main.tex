@@ -169,14 +169,15 @@ identity. \citet{altabaa2024abstractors} formalize a version of this idea
 for Transformers directly, using a relational cross-attention mechanism
 architecturally constrained to depend only on similarity between
 representations, never their content. Our Section~\ref{sec:pointer}
-pointer-based redesign is a much simpler, less architecturally
-constrained step in the same direction: removing a fixed,
-identity-keyed output vocabulary instead of building in an explicit
-relational bottleneck. Our results (helping substantially with one
-sub-problem, only marginally with the other) suggest the stronger,
-more explicit mechanism of \citet{altabaa2024abstractors} may be
-necessary where our simpler intervention is not sufficient (see
-Section~\ref{sec:diversity2} and Section~\ref{sec:discussion}).
+pointer-based redesign targets a narrower question: whether removing a
+fixed, identity-keyed output vocabulary, without also constraining the
+encoder's internal computation to be relational, is enough on its own.
+Our results (helping substantially with one sub-problem, only
+marginally with the other) indicate it is not: the encoder's internal
+computation still need not become identity-invariant, which motivates
+the more explicit mechanism of \citet{altabaa2024abstractors} as a
+next step (see Section~\ref{sec:diversity2} and
+Section~\ref{sec:discussion}).
 
 \paragraph{Pointer and copy mechanisms.} Our Section~\ref{sec:pointer}
 architecture, which predicts a blank cell's value by selecting among the
