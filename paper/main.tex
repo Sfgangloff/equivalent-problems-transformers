@@ -7,6 +7,8 @@
 \usepackage{hyperref}
 \usepackage{url}
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
 
 \title{Probing Transformer Reasoning Transfer \\
 Through Alphabet Equivalence}
@@ -281,6 +283,42 @@ puzzles out for training, so every training target is well-defined, and
 deliberately leave them in for evaluation, so reported numbers reflect
 this real (if small) architectural limitation rather than hiding it.
 
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm and 8mm,
+  box/.style={draw, rounded corners, align=center, minimum height=8mm,
+    font=\small, inner sep=4pt},
+  lbl/.style={font=\bfseries\small}
+]
+\node[box] (enc1) {shared encoder\\[1pt](blank cell's representation)};
+\node[box, below=of enc1] (lin) {$\mathrm{Linear}(d_{\text{model}}, 9K)$\\[1pt]fixed, one row per digit per\\known alphabet};
+\node[box, below=of lin, fill=gray!12] (out1) {softmax over $9K$ absolute\\token ids};
+\node[lbl, above=3mm of enc1] {Classifier head};
+\draw[-{Stealth[length=2mm]}] (enc1) -- (lin);
+\draw[-{Stealth[length=2mm]}] (lin) -- (out1);
+
+\node[box, right=38mm of enc1] (enc2) {shared encoder\\[1pt](blank cell's representation)};
+\node[box, below=of enc2] (query) {learned query projection};
+\node[box, right=10mm of query, fill=gray!4, align=left] (cands)
+  {this puzzle's own given\\token embeddings\\($\leq 9$ candidates)};
+\node[box, below=6mm of query, fill=gray!12] (out2)
+  {softmax over query $\cdot$ candidate\\dot products};
+\node[lbl, above=3mm of enc2] {Pointer head};
+\draw[-{Stealth[length=2mm]}] (enc2) -- (query);
+\draw[-{Stealth[length=2mm]}] (query) -- (out2);
+\draw[-{Stealth[length=2mm]}] (cands) |- (out2);
+\end{tikzpicture}
+\caption{The two architectures share an encoder body and differ only in
+how a blank cell's representation becomes a predicted token. The
+classifier head (left) scores a fixed set of $9K$ absolute token ids,
+requiring dedicated trained rows for every alphabet ever seen. The
+pointer head (right) instead scores only the token ids actually present
+as givens in that specific puzzle instance, so its output space never
+depends on how many alphabets were seen during training.}
+\label{fig:architectures}
+\end{figure}
+
 Both architectures optionally support unrolling the shared encoder for
 several iterations, feeding back each step's prediction for still-blank
 cells as if it were a new given (RRN/IREM-style); all experiments in this
@@ -329,11 +367,6 @@ the puzzle correctly under a different, equally valid one.
 All models are trained with AdamW, batch size 256, for 20 epochs unless
 otherwise noted, on a single A100 GPU per run. Full hyperparameters are
 listed in the Appendix.
-
-% TODO: figure -- a diagram contrasting the classifier head (fixed
-% Linear(d_model, 9K), absolute class index) against the pointer head
-% (per-instance candidate selection, dot product against raw input
-% embeddings) side by side. Not yet created.
 
 \section{Experiments and Results}
 \label{sec:results}

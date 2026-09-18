@@ -107,16 +107,18 @@ why `valid_rate` is primary once ground truth can't be assumed known),
 Training protocol. Compiles cleanly (6 pages total so far), no
 undefined references.
 
+**Done**: the architecture-contrast figure (Figure~\ref{fig:architectures}
+in `main.tex`, placed in the Models subsection right after the
+classifier-head/pointer-head paragraphs) is built as a self-contained
+TikZ diagram (no external image file), replacing the earlier TODO
+comment. Two side-by-side boxes: classifier head (fixed
+`Linear(d_model, 9K)`, absolute token ids) vs. pointer head (learned
+query projection, dot product against the puzzle's own given-token
+embeddings, softmax over ≤9 candidates).
+
 **Still needed**:
-- A figure contrasting the two architectures (classifier: fixed
-  `Linear(d, 9K)` head; pointer: per-instance candidate selection) —
-  **no figure exists yet**, this is a clear gap (marked with a TODO
-  comment in the .tex source at the end of the section).
 - Full hyperparameter table for the Appendix (Training protocol
   subsection currently just gestures at "see Appendix").
-- Once Results gets real `\subsection` labels (currently just
-  `\label{sec:results}` with manual ".1"/".2" text suffixes), swap the
-  Method section's `\ref{sec:results}.3` etc. for proper cross-references.
 
 ### 5. Experiments and Results
 **Status: drafted** (`paper/main.tex`, `\label{sec:results}`), five
@@ -181,12 +183,13 @@ Introduction's contributions list without repeating the Abstract
 verbatim; closes on the Abstractors architecture as the best-motivated
 remaining direction.
 
-**Full paper compiles cleanly end to end as of this entry**: 11 pages
-total (Abstract through Conclusion plus references), no undefined
-references, verified with a real pdflatex/bibtex run. Worth watching
-against ICLR's ~9-page main-text convention (excludes references) once
-figures and the Appendix are added -- see the Figures/tables checklist
-and Section 5's "still needed" notes above.
+**Full paper compiles cleanly end to end as of this entry**: 12 pages
+total (Abstract through Conclusion plus references, now including all
+three figures: the architecture diagram and both Results figures), no
+undefined references, verified with a real pdflatex/bibtex run. Worth
+watching against ICLR's ~9-page main-text convention (excludes
+references) once the Appendix is added -- the only item left on the
+Figures/tables checklist below.
 
 ### Appendix
 Full hyperparameters (already in `configs/base.yaml` and code), compute/
@@ -198,8 +201,8 @@ raw `results/*.jsonl` files but not in any report prose yet.
 
 ## Figures/tables checklist
 
-1. Architecture diagram (classifier vs. pointer head) — **still needed**,
-   TODO comment left in `main.tex`'s Method section.
+1. Architecture diagram (classifier vs. pointer head) — **done**,
+   Figure~\ref{fig:architectures}, self-contained TikZ in `main.tex`.
 2. Mixed-alphabet per-trial accuracy across all conditions (box/strip
    plot) — **done**, `figures/fig_mixed_alphabet.pdf`.
 3. Zero-shot-on-E accuracy/valid_rate across all conditions (bar plot) —
