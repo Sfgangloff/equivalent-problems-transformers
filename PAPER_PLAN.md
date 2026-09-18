@@ -153,34 +153,37 @@ Limitations/Conclusion still stubs) -- worth watching against ICLR's
   (resolving whether the residual zero-shot signal is real or noise).
 
 ### 6. Discussion
-**Argues**: synthesizes 5.1-5.5 into the two-part
-picture — a "compositional coverage" sub-problem that training diversity
-solves, and a "genuine novelty" sub-problem that nothing tried so far
-touches — and connects back to the abstract/concrete framing from the
-introduction. Discusses the (currently unverified) vector-equality
-hypothesis for the small residual zero-shot signal as a direction for
-future interpretability work, explicitly flagged as speculative.
-
-**Status**: exists as prose in `REPORT.md`'s Synthesis section, written
-at close-to-paper quality already — mostly needs the disentangling
-result folded in once available, and expansion connecting back to the
-Related Work framing.
+**Status: drafted** (`paper/main.tex`, `\label{sec:discussion}`).
+Synthesizes Sections 5.1-5.5 into the two-part picture (recombination
+solved by mixing exposure; true novelty unsolved by anything tried),
+connects back to Section 1's abstract/concrete framing (sharpens
+"concrete" to mean specifically the recognition step, not the
+underlying computation), discusses the vector-equality hypothesis
+explicitly flagged as untested, and closes with the Abstractors
+architecture framed as future work per the Open Decisions.
 
 ### 7. Limitations
-**Needed** (not yet written as a dedicated section, though the material
-exists as scattered caveats throughout `REPORT.md`):
-- Single small transformer trained from scratch, single task domain —
-  not a claim about large pretrained models or other domains.
-- Only one equivalence transform tested (alphabet relabeling); others
-  from the original framing (permutation, notation change, premise
-  reordering) untested.
-- The pointer architecture's ~0.8%-of-puzzles structural blind spot
-  (missing-digit-from-givens case).
-- Single seed per major training condition (see Discussion above).
+**Status: drafted** (`paper/main.tex`, `\label{sec:limitations}`). Four
+paragraphs: small-transformer/from-scratch scope, Sudoku-only/single-
+transform scope (both stated as deliberate choices, cross-referencing
+the Open Decisions rather than presenting them as oversights), the
+pointer architecture's 0.80%-of-puzzles structural blind spot, and the
+single-seed-per-condition caveat (naming the unresolved residual-signal
+question directly, while noting valid_rate, the primary metric, is
+unaffected by it).
 
 ### 8. Conclusion
-**Status**: not written; short, should be straightforward once
-Discussion is finalized.
+**Status: drafted** (`paper/main.tex`). Short, ties back to the
+Introduction's contributions list without repeating the Abstract
+verbatim; closes on the Abstractors architecture as the best-motivated
+remaining direction.
+
+**Full paper compiles cleanly end to end as of this entry**: 11 pages
+total (Abstract through Conclusion plus references), no undefined
+references, verified with a real pdflatex/bibtex run. Worth watching
+against ICLR's ~9-page main-text convention (excludes references) once
+figures and the Appendix are added -- see the Figures/tables checklist
+and Section 5's "still needed" notes above.
 
 ### Appendix
 Full hyperparameters (already in `configs/base.yaml` and code), compute/

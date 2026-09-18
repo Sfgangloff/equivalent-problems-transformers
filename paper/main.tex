@@ -130,6 +130,7 @@ while transfer to a truly novel symbol is not.
 % disentangling experiment's result, see PAPER_PLAN.md Section 5.5).
 
 \section{Related Work}
+\label{sec:related}
 
 \paragraph{Neural Sudoku solving.} \citet{palm2018recurrent} introduced
 Recurrent Relational Networks, which solve Sudoku via iterative message
@@ -712,31 +713,132 @@ a resolved finding (Section~\ref{sec:limitations}).
 
 \section{Discussion}
 \label{sec:discussion}
-% TODO: not yet drafted. Exists as prose in REPORT.md's Synthesis
-% section at close-to-paper quality -- needs the disentangling result
-% (\ref{sec:results}.5) folded in once available, connection back to
-% Section 1's abstract/concrete framing, and a forward-looking paragraph
-% on the Abstractors-style relational architecture
-% \citep{altabaa2024abstractors} as the natural next step (resolved as
-% future work, not a completed experiment in this paper -- see
-% PAPER_PLAN.md Open Decisions). Also discusses the (currently
-% unverified) vector-equality/duplicate-detection hypothesis for the
-% small residual zero-shot signal observed in \ref{sec:results}.3--4,
-% explicitly flagged as speculative pending an interpretability probe.
+
+A single failure mode appears from every angle we tested, and it
+resolves into two sub-problems with different answers.
+
+\textbf{Recombining known symbols is solved by training diversity,
+specifically by mixing exposure rather than pool size.}
+Sections~\ref{sec:diversity1} and \ref{sec:pointer} both showed graded,
+partial degradation on recombined-alphabet puzzles under training that
+never mixed alphabets within a puzzle; Section~\ref{sec:diversity2}
+showed that degradation essentially vanishes once training always mixes
+a large pool of letters; Section~\ref{sec:disentangle} located why, by
+reproducing the same near-perfect uniformity with only 6 letters, as
+long as training always mixes them. This part of the entanglement was,
+in the end, a matter of what the training distribution exposed the model
+to, and a cheap property to supply.
+
+\textbf{Transfer to a symbol never seen at all is not solved by anything
+we tried.} Neither the architectural change in Section~\ref{sec:pointer}
+nor either training-diversity condition in
+Sections~\ref{sec:diversity2}--\ref{sec:disentangle} moved held-out
+alphabet E's valid rate off exactly 0\%. Cell accuracy's small residual
+signal is less consistent than it first appeared: it rose from 11.8\% in
+Section~\ref{sec:diversity1}'s classifier baseline to 14.47\% in
+Section~\ref{sec:pointer} to 15.85\% in Section~\ref{sec:diversity2}, but
+fell back to 11.46\%, close to chance, in Section~\ref{sec:disentangle}.
+Whether that pattern reflects a real dependence on pool diversity or
+simply run-to-run variation across a narrow band is not settled by a
+single run per condition; either way, valid rate never once moved, so
+nothing tried so far gives the model a way to discover what an unseen
+symbol means well enough to produce a single fully valid board.
+
+The result underlying both halves of this picture is
+Section~\ref{sec:naive}'s transplant control: the model's procedure
+reuses across equivalent instances exactly, once it is told the symbol
+correspondence. Read against the framing in Section~1, this sharpens
+what ``concrete'' actually means for these models. It is not that the
+computation itself fails to generalize; handed the correspondence, it
+transfers perfectly. What remains bound to specific training instances
+is the recognition step, the part that would let the model notice, on
+its own, that a new instance calls for the procedure it already has.
+Every intervention in this paper either supplies more of that
+recognition capacity directly (the transplant control) or tries to
+induce it indirectly through architecture or data, and only the indirect
+routes were tested at scale; none closed the harder half of the gap.
+
+One candidate account for the small residual signal in
+Sections~\ref{sec:pointer} and~\ref{sec:diversity2}, and its absence in
+Section~\ref{sec:disentangle}, is the vector-equality mechanism sketched
+in Section~\ref{sec:pointer}: a ``do not repeat this symbol nearby''
+detector that only needs two representations to be compared for
+equality, not for their content to be known, could transfer to
+never-trained embeddings by accident, and could plausibly depend on how
+much practice the model gets comparing many distinct vectors during
+training. This is consistent with the pattern observed but has not been
+tested directly; confirming it would need an interpretability probe
+comparing attention or compatibility patterns on held-out E's cells
+against the same puzzle in a known alphabet, which we leave to future
+work.
+
+Given that no data-side intervention touched the harder half of the gap,
+the most promising next step is architectural: a mechanism that
+constrains computation to operate on similarity between representations
+by construction, rather than leaving that as one option among others the
+way the pointer head in Section~\ref{sec:pointer} does. Abstractors
+\citep{altabaa2024abstractors} implement exactly this idea for
+Transformers through relational cross-attention, and are a natural
+candidate for closing what training-side changes could not.
 
 \section{Limitations}
 \label{sec:limitations}
-% TODO: not yet drafted. Material exists as scattered caveats throughout
-% REPORT.md: single small transformer trained from scratch, single task
-% domain (Sudoku-only is a deliberate scope choice, not an oversight --
-% see PAPER_PLAN.md Open Decisions); only one equivalence transform
-% tested (alphabet relabeling); the pointer architecture's structural
-% blind spot on the $\sim$0.8\% of puzzles missing a digit from their
-% givens; single seed per major training condition.
+
+Every model in this paper is a small transformer trained from scratch
+under fully controlled data; we make no claim about how these findings
+would look in a large pretrained model, whose training history already
+spans far more surface variation than any single alphabet-relabeling
+manipulation could add. Section~\ref{sec:related} discusses one recent
+result suggesting a related distinction is visible inside pretrained
+LLMs too \citep{yang2025emergent}, but we did not test this directly.
+
+We deliberately study one domain, Sudoku, rather than several; this
+keeps every comparison across experiments over identical underlying
+puzzles, at the cost of not yet knowing how much of what we find is
+specific to this domain's particular constraint structure. Within that
+domain, we study one equivalence transform, relabeling the symbol
+alphabet, out of several a puzzle could plausibly support (permuting
+rows and columns, or changing notation, for instance); whether these
+other transforms produce the same recognition gap is untested.
+
+The pointer head (Section~\ref{sec:pointer}) has a structural blind
+spot: it can only predict a digit whose token already appears among a
+puzzle's own givens, and 0.80\% of puzzles from our generator have at
+least one digit that does not. We measured this directly rather than
+assuming it away, filtered it out of training, and left it in for
+evaluation, but the architecture is mechanically unable to solve those
+puzzles regardless of how well it has otherwise learned.
+
+Most training conditions in Section~\ref{sec:results} are a single run;
+the few-shot sweep in Section~\ref{sec:diversity1} is the exception, at
+3 seeds. The residual zero-shot cell-accuracy signal discussed in
+Section~\ref{sec:discussion} moved across a narrow, non-monotonic range
+between conditions, and we cannot currently rule out that this
+particular pattern is run-to-run variation rather than a real effect of
+pool diversity; every condition's valid rate, our primary and more
+decisive metric, is unaffected by this uncertainty, since it stayed at
+exactly 0\% throughout.
 
 \section{Conclusion}
-% TODO: not yet drafted; should be straightforward once Discussion is
-% finalized.
+
+We gave a checkable operationalization of a question usually left
+informal, whether a model's competence transfers between instances of
+the same problem that differ only in surface symbols, together with a
+control that separates a true failure to transfer reasoning from the
+simpler fact that some parameters were never trained. Applied to
+Sudoku, naive transfer across a relabeled alphabet fails completely,
+while the transplant control recovers full performance exactly: the
+model's procedure is reusable, but nothing in ordinary training gives it
+a way to recognize, on its own, that a new instance calls for it. Across
+several attempts to close that gap, one sub-problem, recombining symbols
+the model already knows, turned out to be a matter of training
+diversity and is now essentially solved; the other, transferring to a
+symbol the model has never encountered at all, was untouched by every
+architectural and data-side intervention we tried. That split result is
+itself the clearest signal for where to look next: an architecture that
+constrains its computation to operate on relations between
+representations, rather than merely allowing it to, is now the
+best-motivated remaining direction.
 
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
