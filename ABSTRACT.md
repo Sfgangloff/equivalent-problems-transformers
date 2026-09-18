@@ -28,19 +28,18 @@ substantially and the other only marginally) rather than its magnitude
 A reasoner is *abstract* if it applies a general procedure to a
 problem's structure, indifferent to how that structure is concretely
 instantiated; it is *concrete* if what it learned is tied to the
-particular instantiation trained on. This admits a marker: mastering one
-problem instance should transfer to solving another. We study
-equivalence via alphabet renaming, and give a general recipe for testing
-transfer under it: a checkable relabeling, plus a weight-transplant
-control (copying trained per-symbol weights onto the new instance, no
-retraining) isolating transfer failure from untrained parameters. We
-instantiate this with Sudoku: given puzzle P, construct equivalent
-puzzle Q by relabeling P's digits.
+particular instantiation trained on. This gives a testable marker: an
+abstract reasoner should transfer mastery of one problem instance to
+another. We study equivalence via alphabet renaming, and test transfer
+using a weight-transplant control -- copying trained per-symbol weights
+onto the new instance, no retraining -- distinguishing genuine reasoning
+failure from symbols never trained on. We instantiate this with Sudoku,
+where an equivalent puzzle is any relabeling of its digits.
 
-A transformer trained on P transfers to Q no better than an untrained
-network -- yet the transplant control recovers its original performance
-exactly. Reasoning, in that narrow sense, is abstract; recognizing that
-a new instance calls for it is not.
+A transformer trained on one such puzzle transfers to an equivalent one
+no better than an untrained network -- yet the transplant control
+recovers its original performance exactly. Reasoning, in that narrow
+sense, is abstract; recognizing that a new instance calls for it is not.
 
 We probe this recognition gap three ways. Freezing the shared network
 and adapting only a new alphabet's parameters fares worse than training
