@@ -99,25 +99,24 @@ found; the Positioning paragraph states this as a modest claim about
 the specific combination, not any single piece in isolation.
 
 ### 4. Problem Setup and Method
-**Argues**: formal equivalence definition, the transplant control, the
-Sudoku testbed, both model architectures, and the metrics (especially
-why `valid_rate` is the right primary metric once ground-truth
-correspondence can't be assumed known).
+**Status: drafted** (`paper/main.tex`, `\label{sec:method}`), six
+subsections: Task and equivalence (formal definition via alphabets as
+injective maps), Data (generation/split), Models (classifier vs. pointer
+head, side by side), the weight-transplant control, Metrics (including
+why `valid_rate` is primary once ground truth can't be assumed known),
+Training protocol. Compiles cleanly (6 pages total so far), no
+undefined references.
 
-**Status**: essentially all written already, scattered across
-`REPORT.md`'s "Common setup" and each experiment's "Design" paragraphs,
-plus the actual code docstrings (`sudoku/alphabets.py`,
-`sudoku/pointer_dataset.py`, `model/pointer_transformer.py`) which are
-already written at publication-appropriate precision. Converting this
-section is mostly compression + one clean formal-notation pass, not new
-content.
-
-**Needed**: 
+**Still needed**:
 - A figure contrasting the two architectures (classifier: fixed
   `Linear(d, 9K)` head; pointer: per-instance candidate selection) —
-  **no figure exists yet**, this is a clear gap.
-- Formal notation for "equivalence" (P ~ Q via relabeling) if the venue
-  expects it.
+  **no figure exists yet**, this is a clear gap (marked with a TODO
+  comment in the .tex source at the end of the section).
+- Full hyperparameter table for the Appendix (Training protocol
+  subsection currently just gestures at "see Appendix").
+- Once Results gets real `\subsection` labels (currently just
+  `\label{sec:results}` with manual ".1"/".2" text suffixes), swap the
+  Method section's `\ref{sec:results}.3` etc. for proper cross-references.
 
 ### 5. Experiments and Results
 Organized by the six questions in the narrative arc above, each as a

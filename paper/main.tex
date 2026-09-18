@@ -204,14 +204,132 @@ parameters -- has not been used together in this form, though each piece
 draws on the established ideas above.
 
 \section{Problem Setup and Method}
-% TODO: not yet drafted. Content exists as prose in REPORT.md's "Common
-% setup" section and at publication-appropriate precision in code
-% docstrings (sudoku/alphabets.py, sudoku/pointer_dataset.py,
-% model/pointer_transformer.py) -- converting this section is mostly
-% compression plus a formal-notation pass, not new material. Needs one
-% figure (not yet created): a diagram contrasting the two architectures
-% (fixed per-alphabet classifier head vs. per-instance pointer
-% selection).
+\label{sec:method}
+
+\subsection{Task and equivalence}
+
+We use Sudoku as a concrete, verifiable instance of the general setup
+described in Section~1: a $9\times9$ grid, partitioned into nine
+$3\times3$ boxes, must be filled with symbols such that each symbol
+appears exactly once in every row, column, and box. A \emph{puzzle} is a
+partial assignment (some cells given, the rest blank) with a unique
+completion satisfying these constraints; a \emph{solution} is that
+completion. Crucially, the constraint structure refers only to
+\emph{repetition} of symbols, never to their identity -- any bijective
+relabeling of a valid solution's 9 symbols yields another valid
+solution to the correspondingly relabeled puzzle. This is what makes
+Sudoku a clean instance of our general definition: an \emph{alphabet} is
+an injective map from the 9 canonical digit roles $\{1, \ldots, 9\}$ to
+9 distinct token ids, and two puzzles are equivalent exactly when one is
+the other's board relabeled under a different alphabet, with the blank
+symbol (token 0) fixed across all alphabets.
+
+\subsection{Data}
+
+We generate 200{,}000 puzzles once, in a canonical alphabet (token ids
+$1$--$9$), each with 40 given clues and a solution verified unique by
+constraint propagation with backtracking. Every other alphabet used
+anywhere in this paper is a lazy relabeling of this same base set, so
+all reported comparisons across alphabets are guaranteed to be over
+\emph{identical} underlying puzzles. We use a fixed 90/5/5 train/val/test
+split (180{,}000 / 10{,}000 / 10{,}000 puzzles), with the same puzzle
+indices reused across every alphabet.
+
+Each alphabet is a disjoint block of 9 token ids: the $k$-th letter of
+the alphabet (A, B, C, \ldots) is assigned the token-id offset $9(k-1)$,
+so alphabet A is the canonical alphabet itself, B is a $+9$ shift, and so
+on. One letter, which we call E, is reserved held out: it is never
+included in any pretraining pool in any experiment in this paper, so it
+consistently serves as the genuinely-unseen-symbol test throughout.
+
+\subsection{Models}
+
+Both architectures we study share an encoder body: a token embedding
+table, additive row/column/box positional embeddings, and a standard
+pre-norm Transformer encoder (8 layers, $d_{\text{model}}=384$, 8
+attention heads). They differ only in how a blank cell's encoded
+representation is turned into a predicted token.
+
+\paragraph{Classifier head (baseline).} A linear layer maps each cell's
+representation to $9K$ logits, one per digit per alphabet among the $K$
+alphabets ever included in training, and predicts the literal token id
+directly (never a ``digit within my own alphabet,'' which would presuppose
+the model already knows its own alphabet's identity). This head's size
+is fixed at training time: a novel alphabet's $9$ logit rows do not
+exist yet and cannot be added without retraining, which is the
+structural bottleneck motivating our second architecture
+(Section~\ref{sec:results}.3).
+
+\paragraph{Pointer head.} For each blank cell, we instead identify the
+(at most 9) distinct token ids that appear among that specific puzzle
+\emph{instance}'s own given clues, and predict which of them belongs in
+the cell. A learned query, computed from the blank cell's encoded
+representation, is compared via dot product against each candidate's
+raw token-embedding vector (the same embedding table used on the input
+side -- no separate output projection exists), and the resulting scores
+are softmaxed over the present candidates. The output space is bounded
+by the board (at most 9 slots) regardless of how many alphabets have
+ever been seen during training. A puzzle's target is only well-defined
+for a blank cell if the correct digit for that cell is itself among that
+puzzle's own givens, not merely somewhere in the completed grid; measured
+directly on our generator, 0.80\% of puzzles violate this. We filter such
+puzzles out for training, so every training target is well-defined, and
+deliberately leave them in for evaluation, so reported numbers reflect
+this real (if small) architectural limitation rather than hiding it.
+
+Both architectures optionally support unrolling the shared encoder for
+several iterations, feeding back each step's prediction for still-blank
+cells as if it were a new given (RRN/IREM-style); all experiments in this
+paper use a single pass ($T=1$).
+
+\subsection{The weight-transplant control}
+
+After training a model on alphabet A, we can ask how it would perform on
+an equivalent puzzle in alphabet B \emph{if it already knew} the
+digit-for-digit correspondence between A and B's tokens, independent of
+whether B's own parameters ever received a training signal. For the
+classifier head, we do this by copying, for every digit $d \in \{1,
+\ldots, 9\}$, the trained embedding row and output-head row/bias for
+A's token for $d$ directly onto B's token for $d$ -- a plain tensor
+copy, no gradient step, no retraining -- before evaluating on B. (The
+pointer head needs no analogous control: it never has per-alphabet
+output parameters to copy in the first place, which is precisely its
+motivation.) This isolates two failure modes a naive cross-alphabet
+evaluation cannot distinguish on its own: failure because the model's
+reasoning does not generalize across alphabets, versus failure simply
+because B's parameters were never trained at all.
+
+\subsection{Metrics}
+
+We report \emph{cell accuracy} (fraction of blank cells filled
+correctly), \emph{exact match rate} (fraction of boards filled
+completely correctly), and \emph{valid rate} (fraction of boards that
+are legal completions -- no repeated symbol in any row, column, or box,
+consistent with the given clues -- regardless of whether they match one
+specific labeling). For the classifier head, computing cell accuracy
+requires restricting the argmax to the evaluated alphabet's own 9
+logits: an unrestricted argmax lets other alphabets' classes compete,
+and once the transplant control makes two alphabets' rows numerically
+identical for the same digit, argmax's tie-breaking would otherwise
+systematically favor whichever alphabet has the lower token offset,
+which is not genuine model behavior. Valid rate is the primary metric
+whenever a specific ground-truth correspondence cannot be assumed known
+(Sections~\ref{sec:results}.3--\ref{sec:results}.5): since Sudoku's
+solutions are equivariant to symbol relabeling, there are $9!$ equally
+valid labelings of any completed grid, so exact match against one
+arbitrarily chosen labeling would unfairly penalize a model that solved
+the puzzle correctly under a different, equally valid one.
+
+\subsection{Training protocol}
+
+All models are trained with AdamW, batch size 256, for 20 epochs unless
+otherwise noted, on a single A100 GPU per run. Full hyperparameters are
+listed in the Appendix.
+
+% TODO: figure -- a diagram contrasting the classifier head (fixed
+% Linear(d_model, 9K), absolute class index) against the pointer head
+% (per-instance candidate selection, dot product against raw input
+% embeddings) side by side. Not yet created.
 
 \section{Experiments and Results}
 \label{sec:results}
