@@ -119,38 +119,38 @@ undefined references.
   Method section's `\ref{sec:results}.3` etc. for proper cross-references.
 
 ### 5. Experiments and Results
-Organized by the six questions in the narrative arc above, each as a
-subsection. Per subsection: motivating question, setup, result table,
-one-paragraph interpretation.
+**Status: drafted** (`paper/main.tex`, `\label{sec:results}`), five
+`\subsection`s with real labels (no more manual ".1"/".2" text-suffix
+placeholders -- all earlier cross-references in Introduction/Related
+Work/Method updated to point at them properly):
 
-| Subsection | Source experiment | Status |
+| Subsection | Label | Source experiment |
 |---|---|---|
-| 5.1 Naive transfer + transplant control | Exp 0 | Complete, written (`results/2026-09-07_two_alphabet_sudoku.md`, `REPORT.md`) |
-| 5.2 Diversity alone doesn't close it (few-shot freeze + mixed-alphabet) | Exp 1 | Complete, written (`results/2026-09-09_multi_alphabet_experiments.md`, `REPORT.md`) |
-| 5.3 Removing the architectural bottleneck | Exp 2 | Complete, written (`REPORT.md`) |
-| 5.4 Training-diversity split (compositional vs. genuine zero-shot) | Exp 3 | Complete, written (`REPORT.md`) |
-| 5.5 Disentangling pool size vs. mixing-exposure | K=6-mixed run | **Running now** (job `58017245` on Leonardo) |
+| 5.1 Naive transfer + transplant control | `sec:naive` | Exp 0 |
+| 5.2 Diversity alone doesn't close it (few-shot freeze + mixed-alphabet) | `sec:diversity1` | Exp 1 |
+| 5.3 Removing the architectural bottleneck | `sec:pointer` | Exp 2 |
+| 5.4 Training-diversity split (compositional vs. true zero-shot) | `sec:diversity2` | Exp 3 |
+| 5.5 Disentangling pool size vs. mixing-exposure | `sec:disentangle` | K=6-mixed follow-up |
 
-Section 5.6 (explicit relational architecture, Abstractors-style) is
-**not** a Results subsection -- resolved as future work, see Discussion
-and Open decisions.
+Each subsection: motivating question, setup, result table(s), one-
+paragraph interpretation, per the original plan. Compiles cleanly at 9
+pages total so far (all sections through Method + Results; Discussion/
+Limitations/Conclusion still stubs) -- worth watching against ICLR's
+~9-page main-text convention as those fill in and figures are added.
 
-**Needed beyond writing**:
-- **Figures, currently zero exist.** The single highest-value figure for
-  this paper: a plot showing per-trial accuracy across the mixed-
-  alphabet eval for all conditions run so far (classifier/K=6-fixed;
-  pointer/K=6-fixed; pointer/K=25-random-mix; pointer/K=6-random-mix
-  once 5.5 lands) — a box-plot or strip-plot would visually make the
-  "variance collapse" finding immediate in a way the current tables
-  don't. This is buildable right now from data already in
-  `results/*.jsonl`, no new experiments needed.
-- A second figure: zero-shot-on-E accuracy/valid_rate across the same
-  conditions, showing the flat line at 0% valid_rate throughout.
-- Statistical rigor: currently single-seed for most conditions (the
-  few-shot sweep used 3 seeds; the mixed-alphabet trials use 10 random
-  draws but each condition is one training run). More seeds per training
-  condition would strengthen this section for a main-track submission
-  but is a real compute/time cost — see open decisions.
+**Still needed**:
+- **Figures, currently zero exist.** The single highest-value figure:
+  per-trial accuracy across the mixed-alphabet eval for every condition
+  (classifier/K=6-fixed; pointer/K=6-fixed; pointer/K=25-random-mix;
+  pointer/K=6-random-mix) as a box/strip plot -- would make the
+  "variance collapse" finding visually immediate in a way the tables
+  don't. Buildable now from `results/*.jsonl`, no new experiments needed.
+  A second figure: zero-shot-on-E accuracy/valid_rate across the same
+  conditions, showing the flat 0% valid_rate line throughout.
+- Statistical rigor: still single-seed for most conditions beyond the
+  few-shot sweep (3 seeds) -- see Open Decisions item 2 in REPORT.md's
+  "what's left to run" list for the concrete, motivated instance of this
+  (resolving whether the residual zero-shot signal is real or noise).
 
 ### 6. Discussion
 **Argues**: synthesizes 5.1-5.5 into the two-part
