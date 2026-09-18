@@ -21,7 +21,7 @@ Through Alphabet Equivalence}
 \maketitle
 
 \begin{abstract}
-A reasoner is \emph{abstract} if it applies a general procedure to a problem's structure, indifferent to how that structure is concretely instantiated; it is \emph{concrete} if what it learned is tied to the particular instantiation trained on. This gives a testable marker: an abstract reasoner should transfer mastery of one problem instance to another. We study equivalence via alphabet renaming, and test transfer using a weight-transplant control -- copying trained per-symbol weights onto the new instance without retraining -- distinguishing genuine reasoning failure from symbols never trained on. We instantiate this with Sudoku, where an equivalent puzzle is any relabeling of its digits. A transformer trained on one such puzzle transfers to an equivalent one no better than an untrained network -- yet the transplant control recovers its original performance exactly. Reasoning, in that narrow sense, is abstract; recognizing that a new instance calls for it is not. We probe this recognition gap three ways. Freezing the shared network and adapting only a new alphabet's parameters fares worse than training an unfrozen model from scratch on the same data: prior exposure to other alphabets does not ease learning a new one. Recombining already-known symbols into unfamiliar combinations yields graded, partial success -- above chance, short of the seamless transfer an abstract reasoner should show, degrading as combinations diverge from training. Replacing the model's fixed, per-alphabet output vocabulary with a mechanism that selects among a puzzle's own visible symbols helps substantially with recombination, but only marginally with transfer to a truly unseen alphabet. These results isolate a specific failure to recognize alphabet-equivalent instances as such, distinct from a general failure to reason, and show several natural interventions narrow, but do not close, this gap.
+A reasoner is \emph{abstract} if it applies a general procedure to a problem's structure, indifferent to how that structure is concretely instantiated; it is \emph{concrete} if what it learned is tied to the particular instantiation trained on. This gives a testable marker: an abstract reasoner should transfer mastery of one problem instance to another. We study equivalence via alphabet renaming, and test transfer using a weight-transplant control (copying trained per-symbol weights onto the new instance without retraining) that distinguishes true reasoning failure from symbols never trained on. We instantiate this with Sudoku, where an equivalent puzzle is any relabeling of its digits. A transformer trained on one such puzzle transfers to an equivalent one no better than an untrained network, yet the transplant control recovers its original performance exactly. Reasoning, in that narrow sense, is abstract; recognizing that a new instance calls for it is not. We probe this recognition gap three ways. Freezing the shared network and adapting only a new alphabet's parameters fares worse than training an unfrozen model from scratch on the same data: prior exposure to other alphabets does not ease learning a new one. Recombining already-known symbols into unfamiliar combinations yields graded, partial success: above chance, short of the seamless transfer an abstract reasoner should show, degrading as combinations diverge from training. Replacing the model's fixed, per-alphabet output vocabulary with a mechanism that selects among a puzzle's own visible symbols helps substantially with recombination, but only marginally with transfer to a truly unseen alphabet. These results isolate a specific failure to recognize alphabet-equivalent instances as such, distinct from a general failure to reason, and show several natural interventions narrow, but do not close, this gap.
 \end{abstract}
 
 \section{Introduction}
@@ -36,15 +36,15 @@ distinction is central to any claim that a learned system reasons rather
 than merely fits patterns in its training distribution, but such claims
 are frequently made without a test that could actually distinguish the
 two possibilities. Benchmarks such as SCAN \citep{lake2018generalization}
-and COGS \citep{kim2020cogs} test a closely related property --
-generalizing to unseen \emph{combinations} of familiar components -- and
+and COGS \citep{kim2020cogs} test a closely related property,
+generalizing to unseen \emph{combinations} of familiar components, and
 have repeatedly found large gaps between in-distribution and
 compositional-generalization accuracy in standard neural architectures.
 We study a different, narrower notion of generalization: not new
 combinations of familiar parts, but the exact same combinatorial
 structure presented under a purely relabeled vocabulary, which leads to
 a more basic
-question -- does the model recognize the relabeled instance as the
+question: does the model recognize the relabeled instance as the
 problem it already knows how to solve at all.
 
 We propose a concrete operationalization of this distinction.
@@ -57,7 +57,7 @@ transform that leaves a problem's structure completely intact while
 changing its surface form entirely: renaming its symbol alphabet. Two
 problems $P$ and $Q$ are \emph{equivalent} under this definition when
 $Q$ is obtained from $P$ purely by relabeling which symbols represent
-which underlying roles -- nothing about the structure, constraints, or
+which underlying roles; nothing about the structure, constraints, or
 solution changes, only the names used to present it.
 
 This gives more than a single empirical test: a general recipe
@@ -79,49 +79,48 @@ training, we copy the parameters associated with each of $P$'s symbols
 directly onto the parameters for $Q$'s corresponding symbols, using the
 known-by-construction correspondence, with no further training. This
 tells us how the model would perform on $Q$ if it already knew the
-correspondence between the two instances' symbols -- precisely the
+correspondence between the two instances' symbols: precisely the
 information a naive zero-shot evaluation cannot provide on its own.
 
-We instantiate this recipe concretely on Sudoku puzzles: a well-defined,
-verifiable, and cheaply generated combinatorial domain whose solutions
-are invariant to any consistent renaming of its 9 symbols, making it a
-clean testbed for this question. Training a transformer to solve Sudoku
+We instantiate this recipe concretely on Sudoku puzzles, whose instances
+can be generated cheaply with a verified unique solution. Training a
+transformer to solve Sudoku
 puzzles written in one symbol alphabet, we find that it transfers to an
-equivalent puzzle in a different alphabet at chance level -- performance
-indistinguishable from a network that was never trained at all -- even
+equivalent puzzle in a different alphabet at chance level, performance
+indistinguishable from a network that was never trained at all, even
 though the weight-transplant control recovers its original accuracy
-\emph{exactly}. This is the paper's central result: the model's
+\emph{exactly}. The model's
 procedure does reuse across equivalent instances once it is told how
 their symbols correspond; what it lacks is any mechanism for discovering
 that correspondence on its own. We then probe this recognition gap along
-three further axes -- pretraining diversity, an architectural change
+three further axes: pretraining diversity, an architectural change
 that removes a specific structural bottleneck, and training-time data
-diversity at a much larger scale -- and show that each narrows, but does
+diversity at a much larger scale, and show that each narrows, but does
 not close, the gap, with a further finding that training diversity
 resolves the gap into two distinct sub-problems with different answers:
 recombining already-known symbols is solved by sufficient diversity,
-while transfer to a genuinely novel symbol is not.
+while transfer to a truly novel symbol is not.
 
 \paragraph{Contributions.}
 \begin{itemize}
   \item An operationalized, reusable methodology for testing knowledge
   transfer between equivalent instances of a symbolic problem, including
-  a weight-transplant control that isolates genuine reasoning-transfer
+  a weight-transplant control that isolates true reasoning-transfer
   failure from the confound of never-trained parameters.
   \item Applied to Sudoku, we show naive transfer across
-  alphabet-equivalent puzzles fails completely -- statistically
-  indistinguishable from an untrained network -- while the transplant
+  alphabet-equivalent puzzles fails completely (statistically
+  indistinguishable from an untrained network), while the transplant
   control recovers full performance exactly, demonstrating the failure
   is one of recognition, not of reusable computation (Section~\ref{sec:results}.1).
   \item We show this recognition gap persists across two further natural
   interventions: pretraining diversity across several known alphabets,
   and a redesigned architecture that removes a specific structural
-  bottleneck that prevents zero-shot generalization by construction --
+  bottleneck that prevents zero-shot generalization by construction;
   each narrows but does not close the gap (Section~\ref{sec:results}.2--3).
   \item We show training-time data diversity resolves this gap into two
   distinct sub-problems with different answers: recombining
   already-known symbols in novel combinations is essentially solved by
-  sufficient training diversity, while transfer to a genuinely novel,
+  sufficient training diversity, while transfer to a truly novel,
   never-seen symbol remains unsolved by every intervention tested
   (Section~\ref{sec:results}.4).
 \end{itemize}
@@ -134,7 +133,7 @@ while transfer to a genuinely novel symbol is not.
 
 \paragraph{Neural Sudoku solving.} \citet{palm2018recurrent} introduced
 Recurrent Relational Networks, which solve Sudoku via iterative message
-passing between cell-level representations on a graph -- the
+passing between cell-level representations on a graph: the
 architectural lineage our encoder-based model, and its optional
 iterative-refinement mechanism, belong to. That work, and subsequent
 neural combinatorial solvers, focus on solving accuracy within a single
@@ -151,8 +150,8 @@ and compositional accuracy across a range of architectures. Our question
 is narrower and, in a specific sense, easier: we do not ask the model to
 combine familiar parts in new ways, only to recognize the exact same
 combination it was trained on, wearing a different vocabulary. That we
-still find a total failure to recognize this -- indistinguishable from an
-untrained network -- suggests the difficulty compositional-generalization
+still find a total failure to recognize this, indistinguishable from an
+untrained network, suggests the difficulty compositional-generalization
 benchmarks document may in part reflect an even more basic failure to
 abstract away from surface symbol identity at all.
 
@@ -167,9 +166,9 @@ for Transformers directly, using a relational cross-attention mechanism
 architecturally constrained to depend only on similarity between
 representations, never their content. Our Section~\ref{sec:results}.3
 pointer-based redesign is a much simpler, less architecturally
-constrained step in the same direction -- removing a fixed,
+constrained step in the same direction: removing a fixed,
 identity-keyed output vocabulary rather than building in an explicit
-relational bottleneck -- and our results (helping substantially with one
+relational bottleneck. Our results (helping substantially with one
 sub-problem, only marginally with the other) suggest the stronger,
 more explicit mechanism of \citet{altabaa2024abstractors} may be
 necessary where our simpler intervention is not sufficient (see
@@ -184,15 +183,15 @@ mechanisms \citep{see2017get} to this setting. Both were originally
 motivated by output spaces that vary with the input (sorting an input
 sequence; naming a rare word from the source document) rather than by
 the alphabet-equivalence question we study; we use the same mechanism
-for a different purpose, to remove the specific structural obstacle -- a
-per-alphabet output vocabulary -- that makes zero-shot transfer to a new
+for a different purpose, to remove the specific structural obstacle (a
+per-alphabet output vocabulary) that makes zero-shot transfer to a new
 alphabet impossible by construction in the naive classifier design.
 
 \paragraph{Symbolic mechanisms in pretrained language models.}
 Contemporaneously with this direction of work, \citet{yang2025emergent}
 identify an emergent symbolic architecture inside pretrained large
-language models -- symbol abstraction, symbolic induction, and retrieval
-heads operating on abstract variables rather than raw tokens -- that
+language models (symbol abstraction, symbolic induction, and retrieval
+heads operating on abstract variables rather than raw tokens) that
 supports abstract reasoning in a related sense. Our study is
 complementary: rather than probing an existing large pretrained model,
 we train small transformers from scratch under fully controlled data,
@@ -200,10 +199,10 @@ isolating the specific alphabet-relabeling manipulation from every other
 confound a pretrained model's training history would introduce.
 
 \paragraph{Positioning.} To our knowledge, the specific combination we
-use -- defining instance equivalence via a checkable symbol relabeling,
-and a weight-transplant control that isolates genuine
+use, defining instance equivalence via a checkable symbol relabeling,
+together with a weight-transplant control that isolates true
 reasoning-transfer failure from the confound of never-trained
-parameters -- has not been used together in this form, though each piece
+parameters, has not been used together in this form, though each piece
 draws on the established ideas above.
 
 \section{Problem Setup and Method}
@@ -218,7 +217,7 @@ appears exactly once in every row, column, and box. A \emph{puzzle} is a
 partial assignment (some cells given, the rest blank) with a unique
 completion satisfying these constraints; a \emph{solution} is that
 completion. Crucially, the constraint structure refers only to
-\emph{repetition} of symbols, never to their identity -- any bijective
+\emph{repetition} of symbols, never to their identity: any bijective
 relabeling of a valid solution's 9 symbols yields another valid
 solution to the correspondingly relabeled puzzle. This is what makes
 Sudoku a clean instance of our general definition: an \emph{alphabet} is
@@ -243,7 +242,7 @@ the alphabet (A, B, C, \ldots) is assigned the token-id offset $9(k-1)$,
 so alphabet A is the canonical alphabet itself, B is a $+9$ shift, and so
 on. One letter, which we call E, is reserved held out: it is never
 included in any pretraining pool in any experiment in this paper, so it
-consistently serves as the genuinely-unseen-symbol test throughout.
+consistently serves as the truly-unseen-symbol test throughout.
 
 \subsection{Models}
 
@@ -269,7 +268,7 @@ structural bottleneck motivating our second architecture
 the cell. A learned query, computed from the blank cell's encoded
 representation, is compared via dot product against each candidate's
 raw token-embedding vector (the same embedding table used on the input
-side -- no separate output projection exists), and the resulting scores
+side; no separate output projection exists), and the resulting scores
 are softmaxed over the present candidates. The output space is bounded
 by the board (at most 9 slots) regardless of how many alphabets have
 ever been seen during training. A puzzle's target is only well-defined
@@ -293,8 +292,8 @@ digit-for-digit correspondence between A and B's tokens, independent of
 whether B's own parameters ever received a training signal. For the
 classifier head, we do this by copying, for every digit $d \in \{1,
 \ldots, 9\}$, the trained embedding row and output-head row/bias for
-A's token for $d$ directly onto B's token for $d$ -- a plain tensor
-copy, no gradient step, no retraining -- before evaluating on B. (The
+A's token for $d$ directly onto B's token for $d$ (a plain tensor
+copy, no gradient step, no retraining) before evaluating on B. (The
 pointer head needs no analogous control: it never has per-alphabet
 output parameters to copy in the first place, which is precisely its
 motivation.) This isolates two failure modes a naive cross-alphabet
@@ -307,15 +306,15 @@ because B's parameters were never trained at all.
 We report \emph{cell accuracy} (fraction of blank cells filled
 correctly), \emph{exact match rate} (fraction of boards filled
 completely correctly), and \emph{valid rate} (fraction of boards that
-are legal completions -- no repeated symbol in any row, column, or box,
-consistent with the given clues -- regardless of whether they match one
-specific labeling). For the classifier head, computing cell accuracy
+are legal completions, meaning no repeated symbol in any row, column, or
+box, consistent with the given clues, regardless of whether they match
+one specific labeling). For the classifier head, computing cell accuracy
 requires restricting the argmax to the evaluated alphabet's own 9
 logits: an unrestricted argmax lets other alphabets' classes compete,
 and once the transplant control makes two alphabets' rows numerically
 identical for the same digit, argmax's tie-breaking would otherwise
 systematically favor whichever alphabet has the lower token offset,
-which is not genuine model behavior. Valid rate is the primary metric
+which does not reflect real model behavior. Valid rate is the primary metric
 whenever a specific ground-truth correspondence cannot be assumed known
 (Sections~\ref{sec:results}.3--\ref{sec:results}.5): since Sudoku's
 solutions are equivariant to symbol relabeling, there are $9!$ equally

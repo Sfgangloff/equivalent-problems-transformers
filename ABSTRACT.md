@@ -31,13 +31,13 @@ instantiated; it is *concrete* if what it learned is tied to the
 particular instantiation trained on. This gives a testable marker: an
 abstract reasoner should transfer mastery of one problem instance to
 another. We study equivalence via alphabet renaming, and test transfer
-using a weight-transplant control -- copying trained per-symbol weights
-onto the new instance without retraining -- distinguishing genuine reasoning
-failure from symbols never trained on. We instantiate this with Sudoku,
-where an equivalent puzzle is any relabeling of its digits.
+using a weight-transplant control (copying trained per-symbol weights
+onto the new instance without retraining) that distinguishes true
+reasoning failure from symbols never trained on. We instantiate this
+with Sudoku, where an equivalent puzzle is any relabeling of its digits.
 
 A transformer trained on one such puzzle transfers to an equivalent one
-no better than an untrained network -- yet the transplant control
+no better than an untrained network, yet the transplant control
 recovers its original performance exactly. Reasoning, in that narrow
 sense, is abstract; recognizing that a new instance calls for it is not.
 
@@ -45,7 +45,7 @@ We probe this recognition gap three ways. Freezing the shared network
 and adapting only a new alphabet's parameters fares worse than training
 an unfrozen model from scratch on the same data: prior exposure to other
 alphabets does not ease learning a new one. Recombining already-known
-symbols into unfamiliar combinations yields graded, partial success --
+symbols into unfamiliar combinations yields graded, partial success:
 above chance, short of the seamless transfer an abstract reasoner should
 show, degrading as combinations diverge from training. Replacing the
 model's fixed, per-alphabet output vocabulary with a mechanism that
