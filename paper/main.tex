@@ -165,8 +165,8 @@ Symbol Binding Network} uses an indirection mechanism over external memory that
 lets learned rules generalize near-perfectly to entirely novel filler
 entities, given only a handful of examples, because its computation
 operates on relations between representations instead of their
-identity. \citet{altabaa2024abstractors} formalize a version of this idea
-for Transformers directly, using a relational cross-attention mechanism
+identity. \citet{altabaa2024abstractors}'s \emph{Abstractors} formalize a
+version of this idea for Transformers directly, using a relational cross-attention mechanism
 architecturally constrained to depend only on similarity between
 representations, never their content. Our Section~\ref{sec:pointer}
 pointer-based redesign targets a narrower question: whether removing a
@@ -175,7 +175,7 @@ encoder's internal computation to be relational, is enough on its own.
 Our results (helping substantially with one sub-problem, only
 marginally with the other) indicate it is not: the encoder's internal
 computation still need not become identity-invariant, which motivates
-the more explicit mechanism of \citet{altabaa2024abstractors} as a
+Abstractors' more explicit mechanism as a
 next step (see Section~\ref{sec:diversity2} and
 Section~\ref{sec:discussion}).
 
