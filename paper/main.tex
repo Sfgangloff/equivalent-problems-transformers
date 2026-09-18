@@ -916,4 +916,111 @@ best-motivated remaining direction.
 \bibliography{references}
 \bibliographystyle{iclr2026_conference}
 
+\appendix
+\section{Appendix}
+
+\subsection{Hyperparameters}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{0.46\textwidth}p{0.46\textwidth}@{}}
+\hline
+\textbf{Data} & \\
+Puzzles generated & 200{,}000, once, canonical alphabet \\
+Given clues per puzzle & 40 \\
+Split & 180k / 10k / 10k train/val/test, fixed indices \\
+\hline
+\textbf{Model (both heads)} & \\
+Encoder & 8-layer pre-norm Transformer, $d_{\text{model}}=384$, 8 heads \\
+Feedforward dimension & 1536 \\
+Dropout & 0.1 \\
+Positional embeddings & additive row/column/box embeddings \\
+Unrolled iterations & 1 (architecture supports more; unused here) \\
+Pointer query projection & $\mathrm{Linear}(d_{\text{model}}, d_{\text{model}})$, always used \\
+\hline
+\textbf{Training} & \\
+Optimizer & AdamW, lr $3\times10^{-4}$, weight decay $0.01$ \\
+Batch size & 256 \\
+Epochs, single/union alphabet (\ref{sec:naive}) & 30 \\
+Epochs, $K$-alphabet pretraining (\ref{sec:diversity1}--\ref{sec:disentangle}) & 20 \\
+Epochs, few-shot finetune/scratch sweep (\ref{sec:diversity1}) & 150 \\
+Seeds, few-shot finetune/scratch sweep & 3 (0, 1, 2) per $(n, \text{condition})$ \\
+Seeds, all other conditions & 1 \\
+\hline
+\end{tabular}
+\caption{Hyperparameters used across all experiments. Section labels
+indicate where each setting is first used.}
+\label{tab:hyperparams}
+\end{table}
+
+For the frozen-body condition of Section~\ref{sec:diversity1}, the shared
+encoder and positional embeddings are frozen via
+\texttt{requires\_grad\_(False)}, and the token-embedding and
+classifier-head rows belonging to alphabets other than the target one are
+kept fixed by masking their gradient at the moment autograd produces it
+(a backward hook), rather than by zeroing gradients after the fact. This
+matters because AdamW's weight decay shrinks every parameter on every
+step regardless of its gradient, so a masked-gradient row would still
+drift under nonzero weight decay; the finetuning optimizer therefore uses
+weight decay $0$ for this condition only, overriding the value in
+Table~\ref{tab:hyperparams}.
+
+\subsection{Compute}
+
+All experiments ran on Leonardo (CINECA EuroHPC), a single NVIDIA A100
+GPU per job. For Section~\ref{sec:naive}'s single- and union-alphabet
+training, we have measured wall-clock time directly: 52 minutes each for
+the two single-alphabet runs and 1 hour 43 minutes for the union run
+($\approx 3.5$ GPU-hours together). For every other job, Table~\ref{tab:compute}
+reports the wall-clock budget requested at submission time rather than
+measured usage; where we do have measured numbers (Section~\ref{sec:naive}),
+actual usage came in well under the requested budget, so the totals below
+should be read as an upper bound on total compute, not an exact
+accounting.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lr}
+\hline
+Job & Requested wall-clock \\
+\hline
+Data generation (one-time) & 1h00m \\
+Single-alphabet training $\times 2$, union training (Section~\ref{sec:naive}) & 2h00m + 2h00m + 3h00m \\
+Cross-alphabet evaluation & 0h30m \\
+$K{=}6$ classifier pretraining (Section~\ref{sec:diversity1}) & 2h00m \\
+Few-shot finetune/scratch sweep & 1h30m \\
+Mixed-alphabet evaluation & 0h20m \\
+$K{=}6$ pointer pretraining (Section~\ref{sec:pointer}) & 2h00m \\
+Pointer zero-shot and mixed-alphabet evaluation & 0h30m + 0h20m \\
+$K{=}25$ random-mix pointer pretraining (Section~\ref{sec:diversity2}) & 1h30m \\
+Random-mix zero-shot and mixed-alphabet evaluation & 0h30m + 0h20m \\
+$K{=}6$ always-mixed pointer pretraining (Section~\ref{sec:disentangle}) & 1h30m \\
+$K{=}6$ always-mixed zero-shot and mixed-alphabet evaluation & 0h30m + 0h20m \\
+\hline
+\textbf{Total requested (upper bound)} & $\approx$ 20 GPU-hours \\
+\hline
+\end{tabular}
+\caption{Requested wall-clock per SLURM job, one A100 GPU each. Measured
+usage where available (Section~\ref{sec:naive}) came in roughly half of
+the requested budget.}
+\label{tab:compute}
+\end{table}
+
+\subsection{An ablation we did not run}
+
+The pointer head's query is computed via a learned linear projection of
+the blank cell's representation before it is compared against candidate
+embeddings (Section~\ref{sec:method}). The implementation also supports
+skipping this projection and comparing the raw encoder output directly
+against candidate embeddings (\texttt{use\_query\_projection=False}), a
+cheaper variant motivated by the pointer-network and copy-mechanism
+literature we build on \citep{vinyals2015pointer,see2017get}. Every
+result reported in this paper uses the learned projection; the raw
+variant was never trained or evaluated, so we cannot say whether it
+would change the zero-shot transfer results in
+Sections~\ref{sec:pointer}--\ref{sec:disentangle}. We leave it as an
+open, cheap ablation for future work.
+
 \end{document}

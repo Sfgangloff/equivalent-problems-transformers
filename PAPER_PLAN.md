@@ -183,21 +183,39 @@ Introduction's contributions list without repeating the Abstract
 verbatim; closes on the Abstractors architecture as the best-motivated
 remaining direction.
 
-**Full paper compiles cleanly end to end as of this entry**: 12 pages
-total (Abstract through Conclusion plus references, now including all
-three figures: the architecture diagram and both Results figures), no
-undefined references, verified with a real pdflatex/bibtex run. Worth
-watching against ICLR's ~9-page main-text convention (excludes
-references) once the Appendix is added -- the only item left on the
-Figures/tables checklist below.
+**Full paper is now complete end to end, including the Appendix**: 13
+pages total, verified with a real pdflatex/bibtex run, no undefined
+references or citations, no overfull/underfull warnings beyond
+pre-existing benign ones unrelated to any of this session's edits. Main
+text (Abstract through Conclusion, i.e. excluding references and the
+Appendix, which ICLR does not count against the limit) runs through
+page 11, with References starting partway down that same page --
+roughly 11 pages of main text against the ~9-page convention, so a
+trimming pass (condensing Related Work or some Results prose) is worth
+doing before submission, re-checked against the actual current-year
+CFP.
 
 ### Appendix
-Full hyperparameters (already in `configs/base.yaml` and code), compute/
-GPU-hour accounting (recoverable from SLURM job logs — not currently
-tracked in a single place, worth compiling), the `use_query_projection`
-ablation if we run it (flag already exists in `train_pointer.py`, never
-actually run), additional per-letter breakdowns already sitting in the
-raw `results/*.jsonl` files but not in any report prose yet.
+**Status: drafted** (`paper/main.tex`, `\appendix`/`\section{Appendix}`),
+three subsections: A.1 Hyperparameters (a table covering data, model, and
+training settings, pulled from `configs/base.yaml` and the `slurm/*.slurm`
+job scripts, plus a paragraph on the few-shot freezing mechanic's
+gradient-masking hook and the required `weight_decay=0` override); A.2
+Compute (a per-job wall-clock table built from the `slurm/*.slurm`
+`--time=` requests, explicitly labeled as an upper bound since it's
+requested budget rather than measured usage, except for Experiment 0
+where real wall-clock times were recovered from
+`results/2026-09-07_two_alphabet_sudoku.md`: 52min + 52min + 1h43min);
+A.3 the never-run `use_query_projection=False` ablation, named as an
+open question rather than a completed result. No live Leonardo/`sacct`
+access was available in this session, so exact GPU-hour accounting
+(rather than requested-budget estimates) remains a possible future
+tightening, not a blocker.
+
+Additional per-letter breakdowns sitting in the raw `results/*.jsonl`
+files but not in any report prose remain a nice-to-have, not pursued
+here since the aggregate numbers already reported are sufficient for the
+paper's claims.
 
 ## Figures/tables checklist
 
