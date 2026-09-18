@@ -82,10 +82,10 @@ tells us how the model would perform on $Q$ if it already knew the
 correspondence between the two instances' symbols -- precisely the
 information a naive zero-shot evaluation cannot provide on its own.
 
-We instantiate this recipe concretely using Sudoku: a well-defined,
-verifiable, and cheaply generated combinatorial puzzle whose solution is
-invariant to any consistent renaming of its 9 symbols, making it a clean
-testbed for this question. Training a transformer to solve Sudoku
+We instantiate this recipe concretely on Sudoku puzzles: a well-defined,
+verifiable, and cheaply generated combinatorial domain whose solutions
+are invariant to any consistent renaming of its 9 symbols, making it a
+clean testbed for this question. Training a transformer to solve Sudoku
 puzzles written in one symbol alphabet, we find that it transfers to an
 equivalent puzzle in a different alphabet at chance level -- performance
 indistinguishable from a network that was never trained at all -- even
