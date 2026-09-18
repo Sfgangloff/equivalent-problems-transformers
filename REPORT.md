@@ -1,6 +1,6 @@
 # Do Transformers Learn Alphabet-Agnostic Sudoku Solving?
 
-Status report as of 2026-09-16. Covers every experiment run so far, why
+Status report as of 2026-09-18. Covers every experiment run so far, why
 each one was run, what it found, and what's still outstanding. Raw data
 for every experiment lives alongside this report in `results/*.jsonl`;
 per-experiment narrative reports for the two completed multi-part studies
@@ -363,6 +363,51 @@ harder, more varied training distribution costing some best-case
 accuracy while buying much more uniform behavior is an ordinary
 specialist-vs-generalist trade-off, not a surprising one.
 
+### Follow-up: disentangling pool size from mixing-exposure (2026-09-16 to 09-18, complete)
+
+**Why**: Experiment 3 changed two things relative to Experiment 2 at
+once -- pool size (6 -> 25 letters) *and* whether training puzzles ever
+mix multiple letters within one puzzle (never -> always). This
+follow-up holds pool size fixed at Experiment 2's level (the identical 6
+letters, A,B,C,D,F,G -- identical `vocab_size=64` too) while giving it
+Experiment 3's always-mixed training format, to find out which of the
+two variables actually drove the variance collapse.
+
+**Result -- mixed-alphabet compositional test**:
+
+| | K=6, never mixed (Exp. 2) | K=25, always mixed (Exp. 3) | K=6, always mixed (this run) |
+|---|---|---|---|
+| Range, 10 random trials | 34.4% - 76.3% | 98.0% - 98.3% | **98.5% - 98.7%** |
+| Valid rate range, all 12 trials | 0% - 92.6% | 76.3% - 79.5% | **81.0% - 84.3%** |
+
+**Finding: it's mixing-exposure, not pool size.** With only 6 letters --
+the exact same pool as the condition that showed wild 34-76% variance --
+training with always-mixed puzzles reproduces the same tight, uniform
+band seen with 25 letters (in fact slightly *better*: 98.5-98.7% vs
+98.0-98.3%, and 81-84% vs 76-80% valid_rate, plausibly because learning
+capacity isn't spread across as many distinct symbols). Going from 6 to
+25 letters bought essentially nothing extra for this sub-problem. The
+right independent variable for this phenomenon is "did training ever
+expose the model to within-puzzle mixing," not "how large is the
+alphabet pool."
+
+**Result -- zero-shot on held-out E**: 11.46% cell accuracy, 0%
+valid_rate.
+
+**A wrinkle, flagged as suggestive rather than conclusive**: the small
+positive zero-shot signal seen in Experiment 2 (14.47%) and Experiment 3
+(15.85%) is essentially absent here -- 11.46% is statistically close to
+the ~11.1% chance floor. Valid_rate stayed at exactly 0% in all three
+conditions, so the headline conclusion (genuine zero-shot transfer is
+unsolved) is unchanged, but this raises the possibility that the weak
+generic mechanism behind that residual signal (hypothesized in
+Experiment 2 as vector-equality-based duplicate detection) depends on
+genuine pool *diversity* specifically, not just mixing exposure. This is
+based on one training run per condition (no repeated seeds), so it could
+equally be ordinary run-to-run noise within a narrow 11-16% band --
+worth resolving with repeated seeds before treating it as a real effect,
+not yet claimed as one.
+
 ---
 
 ## Synthesis so far
@@ -371,24 +416,33 @@ A single failure mode shows up from every angle tested, and it now
 resolves cleanly into two distinct sub-problems with different answers.
 
 **The compositional sub-problem -- "recombine symbols I already know" --
-is solved by training diversity.** Experiments 1(b) and 2 both showed
-graded, partial degradation on recombined-known-alphabet puzzles under
-K=6 fixed-alphabet training; Experiment 3 shows that degradation
-essentially vanishes once training spans a large enough space of
-recombinations (25 letters, a fresh random mapping every example). This
-piece of the entanglement was, in the end, a training-diversity problem.
+is solved by training diversity, and specifically by mixing-exposure,
+not pool size.** Experiments 1(b) and 2 both showed graded, partial
+degradation on recombined-known-alphabet puzzles under K=6
+never-mixed-alphabet training; Experiment 3 showed that degradation
+essentially vanishes once training always mixes a large pool of letters
+(25); the disentangling follow-up pinned down *why*: the same
+near-perfect uniformity appears with only 6 letters, as long as training
+always mixes them. Pool size from 6 to 25 barely mattered. This piece of
+the entanglement was, in the end, a training-diversity problem, and a
+cheap one to fix -- exposure to mixing at all, not a large vocabulary.
 
 **The zero-shot sub-problem -- "generalize to a symbol never seen at
-all" -- is not solved by either intervention tried so far.** Neither the
+all" -- is not solved by any intervention tried so far.** Neither the
 architectural fix (Experiment 2: removing the fixed per-alphabet output
-vocabulary) nor far more aggressive training diversity (Experiment 3)
-moved held-out alphabet E's `valid_rate` off of exactly 0%, across every
-condition tested. Cell accuracy ticks up slightly each time (11.8% ->
-14.47% -> 15.85%), consistent with a weak, generic signal (plausibly
-vector-equality-based duplicate detection, per the Experiment 2
-hypothesis) getting marginally more reliable, but nothing tried so far
-gives the model any way to *discover* what a genuinely novel symbol
-means well enough to ever produce a fully valid board.
+vocabulary) nor far more aggressive training diversity (Experiment 3, or
+the K=6-always-mixed follow-up) moved held-out alphabet E's `valid_rate`
+off of exactly 0%, across every condition tested. Cell accuracy's small
+residual signal is less consistent than first thought: it rose from
+11.8% (Experiment 1's classifier baseline) to 14.47% (Experiment 2) to
+15.85% (Experiment 3), but dropped back to 11.46% -- essentially chance
+-- in the K=6-always-mixed follow-up. Whether that reflects a real
+dependence on pool diversity (per the vector-equality-based duplicate-
+detection hypothesis) or is simply run-to-run noise across a narrow
+band is unresolved (single run per condition, no repeated seeds). Either
+way, `valid_rate` never once moved off 0% -- nothing tried so far gives
+the model any way to *discover* what a genuinely novel symbol means well
+enough to ever produce a fully valid board.
 
 The clean "aha" result underlying all of this remains Experiment 0's
 transplant control: the model's *procedure* does reuse across instances
@@ -399,41 +453,49 @@ seen.
 
 ## What's left to run
 
-1. **Architecture, now the clear next step**: since neither the pointer
-   redesign nor random-mix training moved the zero-shot `valid_rate` off
-   0%, the literature-grounded next step is an explicit
-   relational-attention mechanism (Abstractors-style, Altabaa et al.
-   2023) that architecturally constrains the model to compute only over
-   *similarity patterns* between representations, never directly over
-   their content -- a bigger redesign than the plain pointer head, not
-   yet started, and now the best-motivated next experiment given that
-   two cheaper interventions have both left this specific gap untouched.
-2. **Interpretability check**: directly test the "duplicate-detection
-   via vector-equality" hypothesis for the small, consistent zero-shot
-   cell-accuracy signal (11.8% -> 14.47% -> 15.85% across Experiments
-   1-3), by comparing attention/compatibility patterns on held-out E's
-   cells against the same puzzle in a known alphabet.
-3. **Minor architecture note**: the pointer model's candidate list is
+1. **Architecture is future work, not required before submission** (see
+   `PAPER_PLAN.md` open decisions): since no data-side intervention
+   (pointer redesign, random-mix training at either pool size) moved the
+   zero-shot `valid_rate` off 0%, the literature-grounded next step
+   would be an explicit relational-attention mechanism (Abstractors-style,
+   Altabaa et al. 2024) that architecturally constrains the model to
+   compute only over *similarity patterns* between representations,
+   never directly over their content. Framed as forward-looking
+   discussion rather than a completed experiment for now.
+2. **Resolve whether the residual zero-shot signal is real**: cell
+   accuracy on held-out E bounced between 11.46% and 15.85% across
+   conditions with no clear monotonic trend, and every condition is a
+   single run. Repeat 2-3 of the existing conditions with different
+   seeds to determine whether this is a real, pool-diversity-dependent
+   effect or just noise -- cheap (reuses all existing code/SLURM
+   scripts) and would settle an open question flagged above before
+   writing it up either way.
+3. **Interpretability check**: directly test the "duplicate-detection
+   via vector-equality" hypothesis by comparing attention/compatibility
+   patterns on held-out E's cells against the same puzzle in a known
+   alphabet -- more informative once item 2 clarifies whether there's a
+   real signal to explain.
+4. **Minor architecture note**: the pointer model's candidate list is
    currently fixed once per forward pass; recomputing it at each
    iteration of the existing (currently unused, `num_iterations=1`)
    iterative-refinement mechanism could in principle let the model
    "discover" a missing-from-givens digit via elimination logic and
    later point to its own prior guess -- would only affect the ~0.8%
    edge case, low priority.
-4. **More controlled mixed-alphabet sweep**: now largely superseded by
-   Experiment 3's result (recombination is essentially solved under
-   sufficient training diversity) for the *pointer* architecture, but
-   still open for the classifier: a deliberate sweep over "how many
-   distinct alphabets are blended" (1 through 6), rather than 10 random
-   draws, would turn the observed coherence-accuracy pattern into a real
-   controlled curve.
-5. **Statistical polish**: more seeds and confidence intervals throughout.
-6. **A second task domain beyond Sudoku**: needed to elevate this from a
-   single-task case study to a general claim, and likely necessary for a
-   main-track (rather than workshop-tier) publication target.
-7. **Low priority**: re-run the stratified missing-digit breakdown on the
+5. **More controlled mixed-alphabet sweep**: now superseded for the
+   *pointer* architecture by the disentangling result above (mixing-
+   exposure, not pool size or degree of blending, is the operative
+   variable -- a sweep over "how many distinct alphabets are blended"
+   would very likely just reconfirm the same tight ~98%/~80%-valid_rate
+   band regardless). Still open for the *classifier* architecture, which
+   was never re-tested under always-mixed training.
+6. **Statistical polish**: more seeds and confidence intervals throughout
+   -- item 2 above is the concrete, motivated instance of this for now.
+7. ~~A second task domain beyond Sudoku~~ resolved: not required (see
+   `PAPER_PLAN.md`); scope stays Sudoku-only.
+8. **Low priority**: re-run the stratified missing-digit breakdown on the
    K=6-fixed pointer checkpoint's zero-shot eval for completeness (its
-   results predate the stratification code, unlike Experiment 3's, which
-   already includes it and shows the same pattern: the missing-digit
-   subset scores slightly lower than the fully-represented subset, as
-   expected, but doesn't materially change either headline number).
+   results predate the stratification code, unlike every run since,
+   which already includes it and shows the same pattern: the missing-
+   digit subset scores slightly lower than the fully-represented subset,
+   as expected, but doesn't materially change any headline number).
