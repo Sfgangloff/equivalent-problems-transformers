@@ -50,6 +50,7 @@ from src.equiv.utils import pick_device  # noqa: E402
 
 
 def _row_mask(weight: torch.Tensor, lo: int, hi: int) -> torch.Tensor:
+    """A same-shape 0/1 mask selecting only rows `[lo, hi)` of `weight`."""
     mask = torch.zeros_like(weight)
     mask[lo:hi] = 1.0
     return mask
@@ -92,12 +93,14 @@ def freeze_for_finetune(model: SudokuTransformer, target_alphabet: str) -> None:
 
 
 def _n_puzzle_subset(dataset: SudokuDataset, n_puzzles: int, seed: int) -> Subset:
+    """A reproducible random `n_puzzles`-sized subset of `dataset` (or all of it, if smaller)."""
     rng = np.random.default_rng(seed)
     indices = rng.choice(len(dataset), size=min(n_puzzles, len(dataset)), replace=False).tolist()
     return Subset(dataset, indices)
 
 
 def _tagged_path(path: str, identifier: str) -> Path:
+    """Insert `_{identifier}` before a path's extension."""
     p = Path(path)
     return p.with_name(f"{p.stem}_{identifier}{p.suffix}")
 
@@ -112,6 +115,9 @@ def finetune(
     seed: int,
     vocab_k: int | None,
 ) -> Path:
+    """Run one few-shot adaptation experiment (`mode="finetune"` or `"scratch"`,
+    see module docstring) and save the resulting checkpoint.
+    """
     torch.manual_seed(seed)
     random.seed(seed)
     device = pick_device(config.train.device)
@@ -210,6 +216,7 @@ def finetune(
 
 
 def main() -> None:
+    """CLI entry point: parse args, load the config, and run one finetune/scratch job."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     parser.add_argument("--mode", required=True, choices=["finetune", "scratch"])

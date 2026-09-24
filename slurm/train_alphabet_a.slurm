@@ -10,7 +10,7 @@
 # No --qos set: uses the account's default QOS (~24h cap), since the
 # 30min-capped boost_qos_dbg smoke test (interactive, tiny.yaml) already
 # passed on 2026-09-07 and this job's --time=02:00:00 exceeds dbg's cap.
-#SBATCH --account=EUHPC_B38_121
+#SBATCH --account=EUHPC_XXXX_XXX
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 

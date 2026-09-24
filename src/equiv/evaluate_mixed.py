@@ -52,6 +52,7 @@ def cycling_digit_to_letter(letters: list[str]) -> dict[int, str]:
 
 
 def random_digit_to_letter(letters: list[str], rng: random.Random) -> dict[int, str]:
+    """One independently-drawn digit-to-letter assignment (a "random" trial)."""
     return {d: rng.choice(letters) for d in range(1, 10)}
 
 
@@ -65,6 +66,9 @@ def evaluate_mixed(
     indices: list[int] | None = None,
     batch_size: int = 128,
 ) -> dict:
+    """Score `model` on one mixed-alphabet trial (`digit_to_letter`): cell
+    accuracy, exact-match rate, and the rate of legal completed boards.
+    `indices`, if given, restricts to that puzzle subset of `split`."""
     dataset = MixedAlphabetDataset(base_path, split, digit_to_letter)
     if indices is not None:
         dataset = Subset(dataset, indices)
@@ -104,6 +108,8 @@ def evaluate_mixed(
 
 
 def main() -> None:
+    """CLI entry point: run the fixed control/maximally-mixed/random trial
+    protocol against a checkpoint and report each trial's metrics."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True)

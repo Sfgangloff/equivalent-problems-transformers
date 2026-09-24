@@ -1,3 +1,5 @@
+"""Tests for the weight-transplant control (evaluate.py)."""
+
 import torch
 
 from src.equiv.evaluate import transplant
@@ -6,11 +8,13 @@ from src.equiv.sudoku.alphabets import class_range
 
 
 def _tiny_model() -> SudokuTransformer:
+    """A small, deterministically-initialized SudokuTransformer for fast tests."""
     torch.manual_seed(0)
     return SudokuTransformer(d_model=16, n_layers=1, n_heads=2, dim_feedforward=32)
 
 
 def test_transplant_makes_source_and_target_rows_identical():
+    """After transplant(A, B), B's per-digit embedding/output rows equal A's."""
     model = _tiny_model()
     transplant(model, "A", "B")
     for digit in range(1, 10):

@@ -7,7 +7,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=boost_usr_prod
-#SBATCH --account=EUHPC_B38_121
+#SBATCH --account=EUHPC_XXXX_XXX
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 

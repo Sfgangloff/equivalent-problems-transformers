@@ -35,6 +35,7 @@ class SudokuDataset(Dataset):
         alphabet: str,
         alphabets: dict[str, int] = ALPHABETS,
     ):
+        """Load the base `.npz` puzzle set and keep only the rows for `split`."""
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         self.puzzles = data["puzzles"][mask]
@@ -43,9 +44,11 @@ class SudokuDataset(Dataset):
         self.alphabets = alphabets
 
     def __len__(self) -> int:
+        """Number of puzzles in this split."""
         return len(self.puzzles)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return (puzzle, solution, blank_mask) for puzzle `idx`, relabeled to this alphabet."""
         puzzle = relabel(self.puzzles[idx].tolist(), self.alphabet, self.alphabets)
         solution = relabel(self.solutions[idx].tolist(), self.alphabet, self.alphabets)
         puzzle_t = torch.tensor(puzzle, dtype=torch.long)
@@ -101,6 +104,7 @@ class MixedAlphabetDataset(Dataset):
     together as one coherent alphabet during training."""
 
     def __init__(self, base_path: str | Path, split: Split, digit_to_letter: dict[int, str]):
+        """Load the base `.npz` puzzle set and keep only the rows for `split`."""
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         self.puzzles = data["puzzles"][mask]
@@ -108,9 +112,11 @@ class MixedAlphabetDataset(Dataset):
         self.digit_to_letter = digit_to_letter
 
     def __len__(self) -> int:
+        """Number of puzzles in this split."""
         return len(self.puzzles)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return (puzzle, solution, blank_mask) for puzzle `idx`, under the mixed alphabet."""
         puzzle = mixed_relabel(self.puzzles[idx].tolist(), self.digit_to_letter)
         solution = mixed_relabel(self.solutions[idx].tolist(), self.digit_to_letter)
         puzzle_t = torch.tensor(puzzle, dtype=torch.long)

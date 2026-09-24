@@ -3,8 +3,8 @@ WHICH of the puzzle's own (up to 9) distinct given token ids belongs
 there, instead of classifying into a fixed, global, per-alphabet
 vocabulary (see SudokuTransformer in transformer.py).
 
-Motivation (see results/2026-09-09_multi_alphabet_experiments.md and
-PLAN.md's Experiment 2 section): SudokuTransformer's output_head is a
+Motivation (see results/2026-09-09_multi_alphabet_experiments.md):
+SudokuTransformer's output_head is a
 Linear(d_model, 9*K) with one row per digit *per known alphabet* -- a
 structural ceiling that no amount of pretraining diversity K can fix,
 since a genuinely new alphabet always needs new, never-trained output
@@ -29,7 +29,8 @@ invariant, similarity-based computation instead of one still subtly
 entangled with the known alphabets' specific trained embeddings. That
 remains the open empirical question this architecture is built to test,
 not a guaranteed outcome -- see the Abstractors/relational-bottleneck
-literature (PLAN.md) for the natural next step if it underperforms.
+literature (Altabaa et al., 2024) for the natural next step if it
+underperforms.
 
 `use_query_projection=False` is a cheap ablation: raw (un-projected) dot
 products between the post-encoder hidden state and the input embedding
@@ -46,10 +47,13 @@ from torch import nn
 
 
 def _box_index(row: int, col: int) -> int:
+    """Map a 0-indexed (row, col) cell to its 0-8 3x3-box index, row-major."""
     return (row // 3) * 3 + (col // 3)
 
 
 class SudokuPointerTransformer(nn.Module):
+    """The pointer-head architecture: see module docstring for the setup."""
+
     def __init__(
         self,
         d_model: int = 256,
@@ -61,6 +65,12 @@ class SudokuPointerTransformer(nn.Module):
         vocab_size: int = 19,
         use_query_projection: bool = True,
     ):
+        """Build the shared encoder body and the pointer query/no output head.
+
+        `use_query_projection=False` runs the cheap ablation described in
+        the module docstring: raw encoder output is dot-producted against
+        candidate embeddings instead of a learned projection of it.
+        """
         super().__init__()
         self.num_iterations = num_iterations
         self.use_query_projection = use_query_projection
@@ -96,6 +106,7 @@ class SudokuPointerTransformer(nn.Module):
             self.query_proj = nn.Linear(d_model, d_model)
 
     def _positions(self) -> torch.Tensor:
+        """Sum the row/column/box embeddings for all 81 cells into one table."""
         return (
             self.row_embedding(self.rows)
             + self.col_embedding(self.cols)

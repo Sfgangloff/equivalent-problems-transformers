@@ -1,3 +1,5 @@
+"""Tests for the A/B two-alphabet SudokuDataset and union_dataset (sudoku/dataset.py)."""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +14,7 @@ TINY_DATA = REPO_ROOT / "data" / "sudoku_tiny.npz"
 
 @pytest.fixture(scope="module", autouse=True)
 def ensure_tiny_dataset():
+    """Generate the tiny fixture dataset once per test module, if not already present."""
     if not TINY_DATA.exists():
         subprocess.run(
             [sys.executable, "scripts/generate_sudoku.py", "--config", "configs/tiny.yaml"],
@@ -21,6 +24,7 @@ def ensure_tiny_dataset():
 
 
 def test_splits_are_disjoint_and_cover_all_puzzles():
+    """train+val+test sizes sum to the full puzzle count, with non-empty val/test."""
     train = SudokuDataset(TINY_DATA, "train", "A")
     val = SudokuDataset(TINY_DATA, "val", "A")
     test = SudokuDataset(TINY_DATA, "test", "A")
@@ -29,6 +33,7 @@ def test_splits_are_disjoint_and_cover_all_puzzles():
 
 
 def test_alphabet_a_and_b_are_the_same_underlying_puzzles_relabeled():
+    """A and B datasets share the same blank pattern and B's tokens are A's tokens +9."""
     a = SudokuDataset(TINY_DATA, "train", "A")
     b = SudokuDataset(TINY_DATA, "train", "B")
     assert len(a) == len(b)
@@ -46,6 +51,7 @@ def test_alphabet_a_and_b_are_the_same_underlying_puzzles_relabeled():
 
 
 def test_alphabet_tokens_are_in_the_expected_ranges():
+    """A's solution tokens fall in [1,9] and B's fall in [10,18]."""
     a = SudokuDataset(TINY_DATA, "train", "A")
     b = SudokuDataset(TINY_DATA, "train", "B")
     for i in range(5):
@@ -56,6 +62,7 @@ def test_alphabet_tokens_are_in_the_expected_ranges():
 
 
 def test_union_dataset_is_concatenation_of_a_and_b():
+    """union_dataset's length equals len(A) + len(B)."""
     a = SudokuDataset(TINY_DATA, "val", "A")
     b = SudokuDataset(TINY_DATA, "val", "B")
     union = union_dataset(TINY_DATA, "val")

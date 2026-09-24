@@ -26,10 +26,13 @@ from ..sudoku.alphabets import NUM_CLASSES, VOCAB_SIZE
 
 
 def _box_index(row: int, col: int) -> int:
+    """Map a 0-indexed (row, col) cell to its 0-8 3x3-box index, row-major."""
     return (row // 3) * 3 + (col // 3)
 
 
 class SudokuTransformer(nn.Module):
+    """The classifier-head architecture: see module docstring for the setup."""
+
     def __init__(
         self,
         d_model: int = 256,
@@ -41,6 +44,12 @@ class SudokuTransformer(nn.Module):
         vocab_size: int = VOCAB_SIZE,
         num_classes: int = NUM_CLASSES,
     ):
+        """Build the shared encoder body and the fixed `num_classes`-way output head.
+
+        `vocab_size`/`num_classes` must cover every alphabet the model will
+        ever be trained or evaluated on; the output head has no way to grow
+        after construction (see module docstring).
+        """
         super().__init__()
         self.num_iterations = num_iterations
 
@@ -68,6 +77,7 @@ class SudokuTransformer(nn.Module):
         self.output_head = nn.Linear(d_model, num_classes)
 
     def _positions(self) -> torch.Tensor:
+        """Sum the row/column/box embeddings for all 81 cells into one table."""
         return (
             self.row_embedding(self.rows)
             + self.col_embedding(self.cols)

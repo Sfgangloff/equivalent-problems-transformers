@@ -1,3 +1,5 @@
+"""Tests for K-way multi-alphabet training (train.py)."""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +13,7 @@ TINY_DATA = REPO_ROOT / "data" / "sudoku_tiny.npz"
 
 @pytest.fixture(scope="module", autouse=True)
 def ensure_tiny_dataset():
+    """Generate the tiny fixture dataset once per test module, if not already present."""
     if not TINY_DATA.exists():
         subprocess.run(
             [sys.executable, "scripts/generate_sudoku.py", "--config", "configs/tiny.yaml"],

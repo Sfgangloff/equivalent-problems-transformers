@@ -30,6 +30,7 @@ from src.equiv.utils import pick_device  # noqa: E402
 
 
 def load_checkpoint(path: str, device: torch.device) -> tuple[SudokuTransformer, dict]:
+    """Load a classifier-head checkpoint into eval mode; return (model, raw checkpoint dict)."""
     ckpt = torch.load(path, map_location=device)
     model = SudokuTransformer(**ckpt["model_config"]).to(device)
     model.load_state_dict(ckpt["model_state"])
@@ -64,6 +65,8 @@ def evaluate(
     device: torch.device,
     batch_size: int = 128,
 ) -> dict:
+    """Score `model` on `eval_alphabet`'s `split`: cell accuracy, exact-match
+    rate, and the rate of legal (no-duplicate) completed boards."""
     alphabets = {eval_alphabet: offset_for_letter(eval_alphabet)}
     dataset = SudokuDataset(base_path, split, eval_alphabet, alphabets=alphabets)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -107,6 +110,7 @@ def evaluate(
 
 
 def main() -> None:
+    """CLI entry point: parse args, load the checkpoint, and evaluate on one alphabet/split."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, help="config yaml (used for data.output_path)")
     parser.add_argument("--checkpoint", required=True)

@@ -10,7 +10,7 @@ training target, replacing the classifier model's absolute class id).
 A puzzle's target is only well-defined for a blank cell if the correct
 digit for that cell is itself among the puzzle's own givens -- not merely
 somewhere in the full solved grid. Measured directly on this repo's own
-40-clue generator (see PLAN.md): 4/500 (0.80%) of puzzles are missing one
+40-clue generator: 4/500 (0.80%) of puzzles are missing one
 digit from their givens entirely. `filter_fully_represented=True` (the
 default, used for training) eagerly drops such puzzles so every training
 target is well-defined; pass False for evaluation, where scoring on the
@@ -83,6 +83,11 @@ def _candidate_fields(
 
 
 class PointerSudokuDataset(Dataset):
+    """One (puzzle, solution, ..., candidate fields) view of the base dataset,
+    in the given alphabet, for the pointer model. See module docstring for
+    the extra candidate/target fields this adds over `dataset.SudokuDataset`.
+    """
+
     def __init__(
         self,
         base_path: str | Path,
@@ -91,6 +96,8 @@ class PointerSudokuDataset(Dataset):
         alphabets: dict[str, int] = ALPHABETS,
         filter_fully_represented: bool = True,
     ):
+        """Load the base `.npz` puzzle set, keeping only `split` (and,
+        by default, only puzzles where every digit appears among the givens)."""
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         puzzles = data["puzzles"][mask]
@@ -107,11 +114,13 @@ class PointerSudokuDataset(Dataset):
         self.alphabets = alphabets
 
     def __len__(self) -> int:
+        """Number of puzzles in this split (after any filtering)."""
         return len(self.puzzles)
 
     def __getitem__(
         self, idx: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        """Return the pointer-model fields for puzzle `idx`, relabeled to this alphabet."""
         puzzle = relabel(self.puzzles[idx].tolist(), self.alphabet, self.alphabets)
         solution = relabel(self.solutions[idx].tolist(), self.alphabet, self.alphabets)
         return _candidate_fields(puzzle, solution)
@@ -166,6 +175,8 @@ class MixedAlphabetPointerDataset(Dataset):
         digit_to_letter: dict[int, str],
         filter_fully_represented: bool = False,
     ):
+        """Load the base `.npz` puzzle set, keeping only `split` (and,
+        if requested, only puzzles where every digit appears among the givens)."""
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         puzzles = data["puzzles"][mask]
@@ -181,11 +192,13 @@ class MixedAlphabetPointerDataset(Dataset):
         self.digit_to_letter = digit_to_letter
 
     def __len__(self) -> int:
+        """Number of puzzles in this split (after any filtering)."""
         return len(self.puzzles)
 
     def __getitem__(
         self, idx: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        """Return the pointer-model fields for puzzle `idx`, under the mixed alphabet."""
         puzzle = mixed_relabel(self.puzzles[idx].tolist(), self.digit_to_letter)
         solution = mixed_relabel(self.solutions[idx].tolist(), self.digit_to_letter)
         return _candidate_fields(puzzle, solution)
@@ -220,6 +233,9 @@ class RandomMixPointerDataset(Dataset):
         filter_fully_represented: bool = True,
         seed: int = 0,
     ):
+        """Load the base `.npz` puzzle set, keeping only `split` (and,
+        by default, only puzzles where every digit appears among the givens);
+        seed the per-item random digit-to-letter draw."""
         data = np.load(base_path)
         mask = data["split"] == _SPLIT_CODE[split]
         puzzles = data["puzzles"][mask]
@@ -236,11 +252,13 @@ class RandomMixPointerDataset(Dataset):
         self._rng = random.Random(seed)
 
     def __len__(self) -> int:
+        """Number of puzzles in this split (after any filtering)."""
         return len(self.puzzles)
 
     def __getitem__(
         self, idx: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, bool]:
+        """Draw a fresh random digit-to-letter mapping and return the pointer-model fields for puzzle `idx`."""
         digit_to_letter = {d: self._rng.choice(self.source_letters) for d in range(1, 10)}
         puzzle = mixed_relabel(self.puzzles[idx].tolist(), digit_to_letter)
         solution = mixed_relabel(self.solutions[idx].tolist(), digit_to_letter)

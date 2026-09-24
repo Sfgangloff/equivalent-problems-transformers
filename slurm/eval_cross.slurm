@@ -10,7 +10,7 @@
 # No --qos set: see train_alphabet_a.slurm. This job is quick (10 short
 # eval passes) so dbg's 30min cap would probably be fine too, but there's
 # no reason to risk the boundary.
-#SBATCH --account=EUHPC_B38_121
+#SBATCH --account=EUHPC_XXXX_XXX
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 

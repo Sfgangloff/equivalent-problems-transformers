@@ -49,6 +49,9 @@ def evaluate_mixed_pointer(
     indices: list[int] | None = None,
     batch_size: int = 128,
 ) -> dict:
+    """Score a pointer `model` on one mixed-alphabet trial (`digit_to_letter`):
+    cell accuracy, exact-match rate, and the rate of legal completed boards.
+    `indices`, if given, restricts to that puzzle subset of `split`."""
     dataset = MixedAlphabetPointerDataset(base_path, split, digit_to_letter)
     if indices is not None:
         dataset = Subset(dataset, indices)
@@ -89,6 +92,8 @@ def evaluate_mixed_pointer(
 
 
 def main() -> None:
+    """CLI entry point: run the fixed control/maximally-mixed/random trial
+    protocol against a pointer checkpoint and report each trial's metrics."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True)

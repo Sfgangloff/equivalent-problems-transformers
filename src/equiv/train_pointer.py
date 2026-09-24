@@ -51,6 +51,7 @@ from src.equiv.utils import pick_device  # noqa: E402
 
 
 def compute_loss(all_logits: list[torch.Tensor], target_slot: torch.Tensor, blank_mask: torch.Tensor) -> torch.Tensor:
+    """Average cross-entropy over blank cells (target = candidate slot, not token id)."""
     loss = torch.zeros((), device=target_slot.device)
     for logits in all_logits:
         loss = loss + F.cross_entropy(logits[blank_mask], target_slot[blank_mask])
@@ -59,6 +60,7 @@ def compute_loss(all_logits: list[torch.Tensor], target_slot: torch.Tensor, blan
 
 @torch.no_grad()
 def evaluate_split(model: SudokuPointerTransformer, loader: DataLoader, device: torch.device) -> tuple[float, float]:
+    """Run one no-grad pass over `loader`, returning (mean loss, cell accuracy)."""
     model.eval()
     total_loss, total_correct, total_blank, n_batches = 0.0, 0, 0, 0
     for puzzle, _solution, blank_mask, candidate_tokens, candidate_mask, target_slot, _fully_represented in loader:
@@ -83,6 +85,7 @@ def evaluate_split(model: SudokuPointerTransformer, loader: DataLoader, device: 
 
 
 def _tagged_path(path: str, identifier: str, tag: str) -> Path:
+    """Insert `_{identifier}` (and, if given, `_{tag}`) before a path's extension."""
     p = Path(path)
     suffix = f"_{identifier}" + (f"_{tag}" if tag else "")
     return p.with_name(f"{p.stem}{suffix}{p.suffix}")
@@ -197,6 +200,7 @@ def train(
 
 
 def main() -> None:
+    """CLI entry point: parse args, load the config, and run one pointer-model training job."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     group = parser.add_mutually_exclusive_group(required=True)

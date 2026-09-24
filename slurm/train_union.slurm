@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=boost_usr_prod
 # No --qos set: see train_alphabet_a.slurm
-#SBATCH --account=EUHPC_B38_121
+#SBATCH --account=EUHPC_XXXX_XXX
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 

@@ -4,6 +4,12 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 
+# internal planning/status notes, not part of the public mirror
+ABSTRACT.md
+PAPER_PLAN.md
+PLAN.md
+REPORT.md
+
 # generated data / run artifacts (regenerated, not committed)
 data/
 logs/*.jsonl

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Sourced by every slurm/*.slurm script to set up the Python/CUDA environment.
 #
-# Confirmed working on Leonardo (2026-09-04, account EUHPC_B38_121, tested
-# via `srun -p boost_usr_prod --qos boost_qos_dbg --gres=gpu:1 --pty bash`):
+# Confirmed working on Leonardo (2026-09-04, tested via
+# `srun -p boost_usr_prod --qos boost_qos_dbg --gres=gpu:1 --pty bash`):
 # `cineca-ai/4.1.1` (loaded via `profile/deeplrn`) provides torch 2.0.0a0
 # with working CUDA (torch.cuda.is_available() -> True, 1 GPU visible per
 # `--gres=gpu:1`). We layer just pyyaml/pytest on top via a

@@ -22,6 +22,7 @@ plt.rcParams.update({
 
 
 def load(fname):
+    """Read a `results/*.jsonl` file into a list of dicts, one per line."""
     path = os.path.join(RESULTS, fname)
     with open(path) as f:
         return [json.loads(line) for line in f]
@@ -72,6 +73,7 @@ plt.close(fig)
 # Figure 2: zero-shot transfer to held-out alphabet E, across conditions.
 # ---------------------------------------------------------------------------
 def find_E_row(rows, mode_key="mode", mode_val=None, eval_key="eval_alphabet"):
+    """Return the first row evaluated on alphabet E (optionally also matching `mode_val`)."""
     for r in rows:
         if r.get(eval_key) == "E" and (mode_val is None or r.get(mode_key) == mode_val):
             return r
@@ -116,7 +118,7 @@ ax.set_ylabel("Cell accuracy on held-out E (%)")
 ax.set_ylim(0, max(heights) + 4)
 for x, h in zip(xs, heights):
     ax.text(x, h + 0.3, f"{h:.1f}", ha="center", fontsize=7.5)
-ax.text(0.5, 0.92, "valid rate = 0% in every condition shown",
+ax.text(0.5, 0.92, "exact match rate = 0% in every condition shown",
         transform=ax.transAxes, ha="center", fontsize=8, color="#333333")
 fig.tight_layout()
 fig.savefig(os.path.join(OUT, "fig_zeroshot_E.pdf"))

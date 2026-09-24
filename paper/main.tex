@@ -1,5 +1,5 @@
 \documentclass{article} % For LaTeX2e
-\usepackage{iclr2026_conference,times}
+\usepackage{iclr2027_conference,times}
 
 % Optional math commands from https://github.com/goodfeli/dlbook_notation.
 \input{math_commands.tex}
@@ -9,6 +9,8 @@
 \usepackage{graphicx}
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta,fit,backgrounds}
+\usepackage{xcolor}
+\usepackage{placeins}
 
 \title{Probing Transformer Reasoning Transfer \\
 Through Alphabet Equivalence}
@@ -24,7 +26,7 @@ Through Alphabet Equivalence}
 \maketitle
 
 \begin{abstract}
-A reasoner is \emph{abstract} if it applies a general procedure to a problem's structure, indifferent to how that structure is concretely instantiated; it is \emph{concrete} if what it learned is tied to the particular instantiation trained on. This gives a testable marker: an abstract reasoner should transfer mastery of one problem instance to another. We study equivalence via alphabet renaming, and test transfer using a weight-transplant control (copying trained per-symbol weights onto the new instance without retraining) that distinguishes true reasoning failure from symbols never trained on. We instantiate this with Sudoku, where an equivalent puzzle is any relabeling of its digits. A transformer trained on one such puzzle transfers to an equivalent one no better than an untrained network, yet the transplant control recovers its original performance exactly. Reasoning, in that narrow sense, is abstract; recognizing that a new instance calls for it is not. We probe this recognition gap three ways. Freezing the shared network and adapting only a new alphabet's parameters fares worse than training an unfrozen model from scratch on the same data: prior exposure to other alphabets does not ease learning a new one. Recombining already-known symbols into unfamiliar combinations yields graded, partial success: above chance, short of the seamless transfer an abstract reasoner should show, degrading as combinations diverge from training. Replacing the model's fixed, per-alphabet output vocabulary with a mechanism that selects among a puzzle's own visible symbols helps substantially with recombination, but only marginally with transfer to a truly unseen alphabet. These results isolate a specific failure to recognize alphabet-equivalent instances as such, distinct from a general failure to reason, and show several natural interventions narrow, but do not close, this gap.
+A reasoner is \emph{abstract} if it applies a general procedure to a problem's structure, indifferent to how that structure is concretely instantiated; it is \emph{concrete} if what it learned is tied to the particular instantiation trained on. This provides a testable marker: an abstract reasoner should be able to transfer mastery of one problem instance to another. We study equivalence between problems via alphabet renaming, which can be defined on any symbolic problem, and instantiate it on Sudoku. A transformer trained on one such puzzle transfers to an equivalent one no better than an untrained network, yet a control that copies over its trained parameters instead of retraining recovers its original performance exactly. Reasoning, in that narrow sense, is abstract; recognizing that a new instance calls for it is not. We probe this recognition gap three ways. Freezing the shared network and adapting only a new alphabet's parameters fares worse than training an unfrozen model from scratch on the same data: prior exposure to other alphabets does not ease learning a new one. Recombining already-known symbols into unfamiliar combinations yields graded, partial success: above chance, short of the seamless transfer an abstract reasoner should show, degrading as combinations diverge from training. Replacing the model's fixed, per-alphabet output vocabulary with a mechanism that selects among a puzzle's own visible symbols helps substantially with recombination, but only marginally with transfer to a truly unseen alphabet. These results isolate a specific failure to recognize alphabet-equivalent instances as such, distinct from a general failure to reason, and show several natural interventions narrow, but do not close, this gap.
 \end{abstract}
 
 \section{Introduction}
@@ -32,253 +34,220 @@ A reasoner is \emph{abstract} if it applies a general procedure to a problem's s
 A model that has learned to solve a problem can be said to reason
 \emph{abstractly} about it if the procedure it applies operates on the
 problem's structure, indifferent to the particular form in which that
-structure is presented. It reasons only
-\emph{concretely} if what it has learned is tied to the specific surface
-form it was trained on, instead of to the structure underneath. This
-distinction is central to any claim that a learned system reasons rather
-than merely fits patterns in its training distribution, but such claims
-are frequently made without a test that could actually distinguish the
-two possibilities. Benchmarks such as SCAN \citep{lake2018generalization}
-and COGS \citep{kim2020cogs} test a closely related property,
-generalizing to unseen \emph{combinations} of familiar components, and
-have repeatedly found large gaps between in-distribution and
-compositional-generalization accuracy in standard neural architectures.
-We study a different, narrower notion of generalization: not new
-combinations of familiar parts, but the exact same combinatorial
-structure presented under a purely relabeled vocabulary, which leads to
-a more basic
-question: does the model recognize the relabeled instance as the
+structure is presented; it reasons only \emph{concretely} if what it has
+learned is tied to the specific surface form it was trained on, instead
+of to the structure underneath \citep{fodor1988connectionism}. This distinction is central to any claim
+that a learned system reasons instead of merely fitting patterns in its
+training distribution, but such claims are frequently made without a
+test that could actually distinguish the two possibilities. Benchmarks
+such as SCAN \citep{lake2018generalization} and COGS \citep{kim2020cogs}
+test a closely related property, generalizing to unseen
+\emph{combinations} of familiar components, and have repeatedly found
+large gaps between in-distribution and compositional-generalization
+accuracy. We study a different, more basic notion of generalization: not
+new combinations of familiar parts, but the exact same combinatorial
+structure presented under a purely relabeled vocabulary, asking a
+question any account of compositional generalization presupposes an
+answer to: does the model recognize the relabeled instance as the
 problem it already knows how to solve at all.
 
-We propose a concrete operationalization of this distinction.
-An abstract reasoner should treat two different instances of the same
-underlying problem interchangeably: having mastered one, it should
-transfer to solving the other, since its procedure does not depend on
-which particular instantiation it happens to face. We instantiate
+We propose a concrete operationalization of this distinction: an
+abstract reasoner should treat two different instances of the same
+underlying problem interchangeably, since its procedure does not depend
+on which particular instantiation it happens to face. We instantiate
 ``different instances of the same problem'' through the simplest
 transform that leaves a problem's structure completely intact while
-changing its surface form entirely: renaming its symbol alphabet. Two
-problems $P$ and $Q$ are \emph{equivalent} under this definition when
-$Q$ is obtained from $P$ purely by relabeling which symbols represent
-which underlying roles; nothing about the structure, constraints, or
-solution changes, only the names used to present it.
+changing its surface form entirely: renaming its set of symbols.
 
-This gives more than a single empirical test: a general recipe
-applicable to any symbolic or combinatorial domain with an analogous
-notion of relabeling. The recipe has two parts. First, define
-equivalence via a checkable relabeling, and measure whether a model
-trained on one instance transfers, unaided, to an equivalent one.
-Second, use a targeted control to separate two failure modes that a naive transfer
-evaluation cannot distinguish on its own. A model may fail on a new
-instance either because its underlying reasoning does not generalize, or
-simply because the new instance's symbols were never seen during
-training, so any parameters associated with them remain at their random
-initialization regardless of how good the model's reasoning otherwise
-is; Sections~\ref{sec:pointer}--\ref{sec:diversity2} later test
-directly whether that alone is enough to prevent any useful signal. We
-isolate
-the second explanation with a \emph{weight-transplant} control: after
-training, we copy the parameters associated with each of $P$'s symbols
-directly onto the parameters for $Q$'s corresponding symbols, using the
-known-by-construction correspondence, with no further training. This
-tells us how the model would perform on $Q$ if it already knew the
-correspondence between the two instances' symbols: precisely the
-information a naive zero-shot evaluation cannot provide on its own.
+This gives a general recipe applicable to any symbolic or combinatorial
+domain: define equivalence via a checkable relabeling, measure whether a
+model trained on one instance transfers, unaided, to an equivalent one,
+and use a targeted \emph{weight-transplant} control, copying a trained
+model's per-symbol parameters directly onto their counterparts in the
+new alphabet, to separate a true failure to generalize from the simpler
+confound that the new instance's symbols were never trained at all.
 
-We instantiate this recipe concretely on Sudoku puzzles, whose instances
-can be generated cheaply with a verified unique solution. Training a
-transformer to solve Sudoku
-puzzles written in one symbol alphabet, we find that it transfers to an
-equivalent puzzle in a different alphabet at chance level, performance
-indistinguishable from a network that was never trained at all, even
-though the weight-transplant control recovers its original accuracy
-\emph{exactly}. The model's
-procedure does reuse across equivalent instances once it is told how
-their symbols correspond; what it lacks is any mechanism for discovering
-that correspondence on its own. We then probe this recognition gap along
-three further axes: pretraining diversity, an architectural change
-that removes a specific structural bottleneck, and training-time data
-diversity at a much larger scale, and show that each narrows, but does
-not close, the gap, with a further finding that training diversity
-resolves the gap into two distinct sub-problems with different answers:
-recombining already-known symbols is solved by sufficient diversity,
-while transfer to a truly novel symbol is not.
+We instantiate this recipe on Sudoku puzzles, whose instances can be
+generated inexpensively with a verified unique solution. A transformer
+trained on one alphabet transfers to an equivalent puzzle in a different
+alphabet at chance level, indistinguishable from an untrained network,
+even though the weight-transplant control recovers its original accuracy
+\emph{exactly}: the model's procedure reuses across equivalent instances
+once told the symbol correspondence, but it never discovers that
+correspondence on its own. Probing this recognition gap along three
+further axes tells a more nuanced story. Pretraining on several known
+alphabets, and an architecture that replaces the model's fixed output
+vocabulary with a mechanism selecting among a puzzle's own visible
+symbols, each narrow the gap somewhat but leave it open. Scaling up
+training-time diversity then resolves it unevenly: recombining symbols
+the model already knows becomes essentially solved, while transfer to a
+truly novel symbol remains just as broken as at the outset.
 
 \paragraph{Contributions.}
 \begin{itemize}
   \item An operationalized, reusable methodology for testing knowledge
   transfer between equivalent instances of a symbolic problem, including
-  a weight-transplant control that isolates true reasoning-transfer
-  failure from the confound of never-trained parameters.
-  \item Applied to Sudoku, we show naive transfer across
-  alphabet-equivalent puzzles fails completely (statistically
-  indistinguishable from an untrained network), while the transplant
-  control recovers full performance exactly, demonstrating the failure
-  is one of recognition, not of reusable computation (Section~\ref{sec:naive}).
-  \item We show this recognition gap persists across two further natural
-  interventions: pretraining diversity across several known alphabets,
-  and a redesigned architecture that removes a specific structural
-  bottleneck that prevents zero-shot generalization by construction;
-  each narrows but does not close the gap (Sections~\ref{sec:diversity1}--\ref{sec:pointer}).
-  \item We show training-time data diversity resolves this gap into two
-  distinct sub-problems with different answers: recombining
-  already-known symbols in novel combinations is essentially solved by
-  sufficient training diversity, while transfer to a truly novel,
-  never-seen symbol remains unsolved by every intervention tested
-  (Section~\ref{sec:diversity2}).
+  a weight-transplant control isolating true reasoning-transfer failure
+  from never-trained parameters.
+  \item Applied to Sudoku, naive transfer across alphabet-equivalent
+  puzzles fails completely, while the transplant control recovers full
+  performance exactly: the failure is one of recognition, not of
+  reusable computation (Section~\ref{sec:naive}).
+  \item This recognition gap persists across pretraining diversity and an
+  architecture removing a structural bottleneck that prevents zero-shot
+  generalization by construction; each narrows but does not close it
+  (Sections~\ref{sec:diversity1}--\ref{sec:pointer}).
+  \item Training-time data diversity, at much larger scale, resolves the
+  gap into two sub-problems: recombining already-known symbols is
+  essentially solved, while transfer to a truly novel symbol remains
+  unsolved by every intervention tested (Section~\ref{sec:diversity2}).
 \end{itemize}
-
-% TODO: roadmap paragraph and exact section cross-references, to be
-% finalized once the Results section numbering is settled (pending the
-% disentangling experiment's result, see PAPER_PLAN.md Section 5.5).
 
 \section{Related Work}
 \label{sec:related}
 
 \paragraph{Neural Sudoku solving.} \citet{palm2018recurrent} introduced
-\emph{Recurrent Relational Networks}, which solve Sudoku via iterative message
-passing between cell-level representations on a graph: the
-architectural lineage our encoder-based model, and its optional
-iterative-refinement mechanism, belong to. That work, and subsequent
-neural combinatorial solvers, focus on solving accuracy within a single
-fixed vocabulary; we instead hold solving accuracy on the training
-vocabulary fixed near ceiling throughout, and ask what happens under a
-symbol relabeling that leaves the underlying combinatorial problem
-completely unchanged.
+\emph{Recurrent Relational Networks}, solving Sudoku via iterative
+message passing between cell-level representations on a graph, the
+architectural lineage our encoder-based model belongs to.
+\citet{wang2019satnet}'s \emph{SATNet} instead embeds a differentiable
+MAXSAT solver directly in the network; \citet{chang2020assessing} showed
+it fails at visual Sudoku without intermediate labels tying each digit
+image to its symbol, a symbol-grounding failure related to the one we
+document, though via a different architecture and a different route to
+severing the symbol-to-meaning link. That work, and
+subsequent neural combinatorial solvers, target solving accuracy within a
+single fixed vocabulary; we instead hold that accuracy fixed near ceiling
+and ask what happens under a symbol relabeling that leaves the problem
+unchanged.
 
 \paragraph{Compositional and systematic generalization.} SCAN
 \citep{lake2018generalization} and COGS \citep{kim2020cogs} test whether
 sequence models generalize to novel \emph{combinations} of familiar
-primitives, and both find persistent, large gaps between in-distribution
-and compositional accuracy across a range of architectures. Our question
-is narrower: we do not ask the model to
-combine familiar parts in new ways, only to recognize the exact same
-combination it was trained on, wearing a different vocabulary. That we
-still find a total failure to recognize this, indistinguishable from an
-untrained network, suggests the difficulty compositional-generalization
-benchmarks document may in part reflect an even more basic failure to
-abstract away from surface symbol identity at all.
+primitives, both finding persistent, large gaps between in-distribution
+and compositional accuracy; \citet{hupkes2020compositionality} formalize
+this style of test into a general methodology for probing
+compositionality, and \citet{csordas2021devil} show the gap narrows
+substantially for Transformers specifically under the right training
+details. Our question is more basic: not combining familiar parts in new
+ways, only recognizing the exact same combination already trained on,
+wearing a different vocabulary. That we still find total failure
+suggests the difficulty these benchmarks document may in part reflect an
+even more basic failure to abstract away from surface symbol identity at
+all.
 
-\paragraph{Symbol binding and variable binding.} \citet{webb2021emergent}
-is the closest direct precedent for our framing: their \emph{Emergent
-Symbol Binding Network} uses an indirection mechanism over external memory that
-lets learned rules generalize near-perfectly to entirely novel filler
-entities, given only a handful of examples, because its computation
-operates on relations between representations instead of their
-identity. \citet{altabaa2024abstractors}'s \emph{Abstractors} formalize a
-version of this idea for Transformers directly, using a relational cross-attention mechanism
-architecturally constrained to depend only on similarity between
+\paragraph{Symbol binding and variable binding.}
+\citet{santoro2017simple}'s \emph{Relation Networks} were an early
+architecture for relational reasoning by construction, though over a
+fixed input set instead of symbol identity. \citet{webb2021emergent} is
+the closest direct precedent for our framing: their \emph{Emergent
+Symbol Binding Network} uses an indirection mechanism over external memory
+that lets learned rules generalize near-perfectly to entirely novel filler
+entities from a handful of examples, because its computation operates on
+relations between representations instead of their identity.
+\citet{altabaa2024abstractors}'s \emph{Abstractors} formalize a version of
+this idea for Transformers directly, via a relational cross-attention
+mechanism constrained to depend only on similarity between
 representations, never their content. Our Section~\ref{sec:pointer}
-pointer-based redesign targets a narrower question: whether removing a
-fixed, identity-keyed output vocabulary, without also constraining the
-encoder's internal computation to be relational, is enough on its own.
-Our results (helping substantially with one sub-problem, only
-marginally with the other) indicate it is not: the encoder's internal
-computation still need not become identity-invariant, which motivates
-Abstractors' more explicit mechanism as a
-next step (see Section~\ref{sec:diversity2} and
-Section~\ref{sec:discussion}).
-
-\paragraph{Pointer and copy mechanisms.} Our Section~\ref{sec:pointer}
-architecture, which predicts a blank cell's value by selecting among the
-symbols visible elsewhere in the same puzzle instance instead of
-classifying into a fixed global vocabulary, is a direct application of
+pointer-based redesign (predicting a blank cell's value by selecting
+among symbols visible elsewhere in the puzzle, a direct application of
 Pointer Networks \citep{vinyals2015pointer} and pointer-generator copy
-mechanisms \citep{see2017get} to this setting. Both were originally
-motivated by output spaces that vary with the input (sorting an input
-sequence; naming a rare word from the source document) instead of by
-the alphabet-equivalence question we study; we use the same mechanism
-for a different purpose, to remove the specific structural obstacle (a
-per-alphabet output vocabulary) that makes zero-shot transfer to a new
-alphabet impossible by construction in the naive classifier design.
+mechanisms \citep{see2017get}) asks a narrower question: whether
+removing a fixed, identity-keyed output vocabulary, without also
+constraining the encoder's internal computation to be relational, is
+enough on its own. Our results (helping substantially with one
+sub-problem, only marginally with the other) indicate it is not,
+motivating Abstractors' more explicit mechanism as a next step
+(Sections~\ref{sec:diversity2}, \ref{sec:discussion}).
 
 \paragraph{Symbolic mechanisms in pretrained language models.}
-Contemporaneously with this direction of work, \citet{yang2025emergent}
-identify an emergent symbolic architecture inside pretrained large
-language models (symbol abstraction, symbolic induction, and retrieval
-heads operating on abstract variables instead of raw tokens) that
-supports abstract reasoning in a related sense. Our study is
-complementary: instead of probing an existing large pretrained model,
-we train small transformers from scratch under fully controlled data,
-isolating the specific alphabet-relabeling manipulation from every other
-confound a pretrained model's training history would introduce.
+Contemporaneously, \citet{yang2025emergent} identify an emergent symbolic
+architecture inside pretrained large language models (symbol
+abstraction, symbolic induction, and retrieval heads operating on
+abstract variables instead of raw tokens) supporting abstract reasoning
+in a related sense, and \citet{feng2024how} similarly find LLMs bind
+entities to attributes in context via dedicated binding-identity
+representations. Their results establish that such mechanisms can exist inside an
+already-trained model; our question is different: which interventions
+cause the analogous recognition gap to appear or close, which requires
+controlling training itself, in the spirit of work training small
+transformers from scratch on algorithmic tasks to study generalization
+in isolation \citep{power2022grokking,velickovic2021neural}. We train
+small transformers under fully controlled data, so that pretraining
+diversity, architecture, and training-time mixing can each be
+manipulated one at a time and any resulting behavior change attributed
+directly to it.
 
 \section{Problem Setup and Method}
 \label{sec:method}
 
-\subsection{Task and equivalence}
+We fix Sudoku terminology used throughout the paper: a
+puzzle fixes some cells (the \emph{fixed cells}) of a $9\times9$ grid,
+partitioned into nine $3\times3$ boxes, and leaves the rest blank; a
+\emph{solution} fills every blank cell so that each of 9 symbols
+appears exactly once in every row, column, and box, and we only use
+puzzles with a unique solution. Section~\ref{sec:equivalence} below
+defines, for combinatorial problems in general, what it means for two
+puzzles to be equivalent under a relabeling of their symbols, and the
+notation we reuse throughout the paper; the remaining subsections
+instantiate the rest of our setup for Sudoku specifically.
 
-We use Sudoku as a concrete, verifiable instance of the general setup
-described in Section~1: a $9\times9$ grid, partitioned into nine
-$3\times3$ boxes, must be filled with symbols such that each symbol
-appears exactly once in every row, column, and box. A \emph{puzzle} is a
-partial assignment (some cells given, the rest blank) with a unique
-completion satisfying these constraints; a \emph{solution} is that
-completion. Crucially, the constraint structure refers only to
-\emph{repetition} of symbols, never to their identity: any bijective
-relabeling of a valid solution's 9 symbols yields another valid
-solution to the correspondingly relabeled puzzle. This is what makes
-Sudoku a clean instance of our general definition: an \emph{alphabet} is
-an injective map from the 9 canonical digit roles $\{1, \ldots, 9\}$ to
-9 distinct token ids, and two puzzles are equivalent exactly when one is
-the other's board relabeled under a different alphabet, with the blank
-symbol (token 0) fixed across all alphabets.
+\subsection{Equivalence of combinatorial problems}
+\label{sec:equivalence}
+
+A combinatorial problem is defined over $n$ roles
+subject to some rules; a puzzle is stated using an
+\emph{alphabet}: an injective map $A$ from the $n$ canonical roles
+$\{1, \ldots, n\}$ to $n$ distinct tokens, together with a fixed token
+$0$ reserved as blank and shared by every alphabet (for Sudoku,
+$n=9$). For a puzzle $P$ stated in the canonical alphabet (roles
+$1, \ldots, n$ used directly as tokens), write $A(P)$ for the puzzle
+obtained by relabeling every role $d$ to token $A(d)$, leaving every
+other aspect, positions, structure, and rules, unchanged; we call
+$A(P)$ ``puzzle $P$ in alphabet $A$.''
+
+This relabeling preserves validity unconditionally: applying the same
+substitution everywhere carries any solution of $P$ to a solution of the
+correspondingly relabeled puzzle. Two puzzles are \emph{equivalent}
+exactly when they are $A(P)$ and $B(P)$ for the same underlying $P$ and
+two alphabets $A \neq B$: solving one is the same problem as solving the
+other, under a different alphabet.
 
 \subsection{Data}
 
-We generate 200{,}000 puzzles once, in a canonical alphabet (token ids
-$1$--$9$), each with 40 given clues and a solution verified unique by
-constraint propagation with backtracking. Every other alphabet used
-anywhere in this paper is a lazy relabeling of this same base set, so
-all reported comparisons across alphabets are guaranteed to be over
-\emph{identical} underlying puzzles. We use a fixed 90/5/5 train/val/test
-split (180{,}000 / 10{,}000 / 10{,}000 puzzles), with the same puzzle
-indices reused across every alphabet.
+We generate 200{,}000 puzzles once, in a canonical alphabet (tokens 1 to
+9), each with 40 fixed cells and a solution verified unique by
+constraint propagation with backtracking, and split them once into a
+fixed 90/5/5 train/val/test partition (180{,}000 / 10{,}000 / 10{,}000
+puzzles; full generation settings in Table~\ref{tab:hyperparams},
+Appendix~\ref{app:hyperparams}). For any other alphabet, we obtain its
+puzzle set by applying
+that alphabet to this same partition, so every alphabet's split covers
+the same underlying puzzles, and comparisons across alphabets are over
+\emph{identical} underlying puzzles.
 
-Each alphabet is a disjoint block of 9 token ids: the $k$-th letter of
-the alphabet (A, B, C, \ldots) is assigned the token-id offset $9(k-1)$,
-so alphabet A is the canonical alphabet itself, B is a $+9$ shift, and so
-on. One letter, which we call E, is reserved held out: it is never
-included in any pretraining pool in any experiment in this paper, so it
-consistently serves as the truly-unseen-symbol test throughout.
+Each alphabet is a disjoint block of 9 token ids: the $k$-th letter (A,
+B, C, \ldots) simply shifts every token id by $9(k-1)$, so alphabet A is
+the canonical alphabet itself, B shifts every id by $+9$, and so on. We
+designate one letter, E, as held out from every model's training data in
+every experiment, so it consistently serves as the truly-unseen-symbol
+test throughout.
 
 \subsection{Models}
 
-Both architectures we study share an encoder body: a token embedding
-table, additive row/column/box positional embeddings, and a standard
-pre-norm Transformer encoder (8 layers, $d_{\text{model}}=384$, 8
-attention heads). They differ only in how a blank cell's encoded
-representation is turned into a predicted token.
+Both architectures we study share an encoder body:
+token embeddings, additive row/column/box positional
+embeddings, and a standard
+pre-norm Transformer encoder \citep{vaswani2017attention} (8 layers,
+$d_{\text{model}}=384$, 8 attention heads; full architecture
+hyperparameters in Table~\ref{tab:hyperparams}, Appendix~\ref{app:hyperparams}).
+They differ only in how a blank cell's encoded
+representation is turned into a predicted token, illustrated side by
+side in Figure~\ref{fig:architectures}.
 
-\paragraph{Classifier head (baseline).} A linear layer maps each cell's
-representation to $9K$ logits, one per digit per alphabet among the $K$
-alphabets ever included in training, and predicts the literal token id
-directly (never a ``digit within my own alphabet,'' which would presuppose
-the model already knows its own alphabet's identity). This head's size
-is fixed at training time: a novel alphabet's $9$ logit rows do not
-exist yet and cannot be added without retraining, which is the
-structural bottleneck motivating our second architecture
-(Section~\ref{sec:pointer}).
-
-\paragraph{Pointer head.} For each blank cell, we instead identify the
-(at most 9) distinct token ids that appear among that specific puzzle
-\emph{instance}'s own given clues, and predict which of them belongs in
-the cell. A learned query, computed from the blank cell's encoded
-representation, is compared via dot product against each candidate's
-raw token-embedding vector (the same embedding table used on the input
-side; no separate output projection exists), and the resulting scores
-are softmaxed over the present candidates. The output space is bounded
-by the board (at most 9 slots) regardless of how many alphabets have
-ever been seen during training. A puzzle's target is only well-defined
-for a blank cell if the correct digit for that cell is itself among that
-puzzle's own givens, not merely somewhere in the completed grid; measured
-directly on our generator, 0.80\% of puzzles violate this. We filter such
-puzzles out for training, so every training target is well-defined, and
-deliberately leave them in for evaluation, so reported numbers reflect
-this real (if small) architectural limitation instead of hiding it.
-
-\begin{figure}[t]
+\begin{figure}[h]
 \centering
+\resizebox{0.9\linewidth}{!}{%
 \begin{tikzpicture}[
   node distance=6mm and 8mm,
   box/.style={draw, rounded corners, align=center, minimum height=8mm,
@@ -286,7 +255,7 @@ this real (if small) architectural limitation instead of hiding it.
   lbl/.style={font=\bfseries\small}
 ]
 \node[box] (enc1) {shared encoder\\[1pt](blank cell's representation)};
-\node[box, below=of enc1] (lin) {$\mathrm{Linear}(d_{\text{model}}, 9K)$\\[1pt]fixed, one row per digit per\\known alphabet};
+\node[box, below=of enc1] (lin) {$\mathrm{Linear}(d_{\text{model}}, 9K)$\\[1pt]fixed, one row per role per\\known alphabet};
 \node[box, below=of lin, fill=gray!12] (out1) {softmax over $9K$ absolute\\token ids};
 \node[lbl, above=3mm of enc1] {Classifier head};
 \draw[-{Stealth[length=2mm]}] (enc1) -- (lin);
@@ -295,72 +264,108 @@ this real (if small) architectural limitation instead of hiding it.
 \node[box, right=38mm of enc1] (enc2) {shared encoder\\[1pt](blank cell's representation)};
 \node[box, below=of enc2] (query) {learned query projection};
 \node[box, right=10mm of query, fill=gray!4, align=left] (cands)
-  {this puzzle's own given\\token embeddings\\($\leq 9$ candidates)};
+  {this puzzle's own fixed-cell tokens'\\embeddings (same table as input;\\$\leq 9$ candidates)};
 \node[box, below=6mm of query, fill=gray!12] (out2)
   {softmax over query $\cdot$ candidate\\dot products};
 \node[lbl, above=3mm of enc2] {Pointer head};
 \draw[-{Stealth[length=2mm]}] (enc2) -- (query);
 \draw[-{Stealth[length=2mm]}] (query) -- (out2);
 \draw[-{Stealth[length=2mm]}] (cands) |- (out2);
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{The two architectures share an encoder body and differ only in
 how a blank cell's representation becomes a predicted token. The
 classifier head (left) scores a fixed set of $9K$ absolute token ids,
 requiring dedicated trained rows for every alphabet ever seen. The
 pointer head (right) instead scores only the token ids actually present
-as givens in that specific puzzle instance, so its output space never
+among that specific puzzle's fixed cells, so its output space never
 depends on how many alphabets were seen during training.}
 \label{fig:architectures}
 \end{figure}
 
-Both architectures optionally support unrolling the shared encoder for
-several iterations, feeding back each step's prediction for still-blank
-cells as if it were a new given (RRN/IREM-style); all experiments in this
-paper use a single pass ($T=1$).
+\paragraph{Classifier head (baseline).} A linear layer maps each cell's
+representation to $9K$ logits, one per role per alphabet among the $K$
+alphabets ever included in training, and predicts the literal token id
+directly (never a ``role within some alphabet,'' which would presuppose
+the model already knows its own alphabet's identity). This head's size
+is fixed at training time: a novel alphabet's $9$ logit rows do not
+exist yet and cannot be added without retraining, which is the
+structural bottleneck motivating the pointer head
+described next.
+
+\paragraph{Pointer head.} For each blank cell, we instead identify the
+(at most 9) distinct token ids that appear among that specific puzzle's
+own fixed cells, and predict which of them belongs in the cell. A
+learned query, computed from the blank cell's encoded representation, is
+compared via dot product against each candidate's raw token-embedding
+vector (the same embedding table used on the input side; no separate
+output projection exists), and the resulting scores are softmaxed over
+the present candidates. This candidate set is always drawn from the
+puzzle's own fixed cells, so it never exceeds 9 candidates, unlike the
+classifier head's $9K$-sized output, which grows with $K$. A puzzle's
+target is only well-defined for a blank cell if the correct token is
+itself among that puzzle's own fixed cells, not merely somewhere in the
+completed grid; measured directly on our generator, 0.80\% of puzzles
+violate this. We filter such puzzles out for training, and deliberately
+leave them in for evaluation, so reported numbers reflect this real (if
+small) architectural
+limitation.
+
+Both architectures optionally support RRN/IREM-style unrolling
+\citep{palm2018recurrent,du2022learning} of the shared encoder; all
+experiments here use a single pass ($T=1$).
 
 \subsection{The weight-transplant control}
+\label{sec:transplant}
 
-After training a model on alphabet A, we can ask how it would perform on
-an equivalent puzzle in alphabet B \emph{if it already knew} the
-digit-for-digit correspondence between A and B's tokens, independent of
-whether B's own parameters ever received a training signal. For the
-classifier head, we do this by copying, for every digit $d \in \{1,
-\ldots, 9\}$, the trained embedding row and output-head row/bias for
-A's token for $d$ directly onto B's token for $d$ (a plain tensor
-copy, no gradient step, no retraining) before evaluating on B. (The
-pointer head needs no analogous control: it never has per-alphabet
-output parameters to copy in the first place, which is precisely its
-motivation.) This isolates two failure modes a naive cross-alphabet
-evaluation cannot distinguish on its own: failure because the model's
-reasoning does not generalize across alphabets, versus failure simply
-because B's parameters were never trained at all.
+Naive transfer between equivalent puzzles $A(P)$ and $B(P)$
+(Section~\ref{sec:naive}) cannot tell whether a model's failure to solve
+$B(P)$ reflects reasoning that does not generalize across alphabets, or
+simply that $B$'s tokens never received a training signal, leaving their
+parameters at random initialization regardless of how good the model's
+reasoning otherwise is. The weight-transplant control isolates the
+second explanation: for the classifier head, we copy, for every role
+$d \in \{1, \ldots, 9\}$, $A$'s token-$d$ row of the token embedding
+table and of the $\mathrm{Linear}(d_{\text{model}}, 9K)$ output head
+(row and bias) directly onto $B$'s token-$d$ row (a plain tensor copy,
+no gradient step or retraining) before evaluating on $B$. This tells us
+how the model performs on $B$ once it has $B$'s own trained parameters,
+without $B$ itself ever appearing during training. The pointer head
+needs no analogous control: it never has per-alphabet output parameters
+to copy in the first place, which is precisely its motivation.
 
 \subsection{Metrics}
 
-We report \emph{cell accuracy} (fraction of blank cells filled
-correctly), \emph{exact match rate} (fraction of boards filled
-completely correctly), and \emph{valid rate} (fraction of boards that
-are legal completions, meaning no repeated symbol in any row, column, or
-box, consistent with the given clues, regardless of whether they match
-one specific labeling). For the classifier head, computing cell accuracy
-requires restricting the argmax to the evaluated alphabet's own 9
-logits: an unrestricted argmax lets other alphabets' classes compete,
-and once the transplant control makes two alphabets' rows numerically
-identical for the same digit, argmax's tie-breaking would otherwise
-systematically favor whichever alphabet has the lower token offset,
-which does not reflect real model behavior. Valid rate is the primary metric
-whenever a specific ground-truth correspondence cannot be assumed known
-(Sections~\ref{sec:pointer}--\ref{sec:disentangle}): since Sudoku's
-solutions are equivariant to symbol relabeling, there are $9!$ equally
-valid labelings of any completed grid, so exact match against one
-arbitrarily chosen labeling would unfairly penalize a model that solved
-the puzzle correctly under a different, equally valid one.
+We report two metrics. \emph{Cell accuracy} is the
+fraction of blank cells filled with the token recorded in our data.
+\emph{Exact match rate} is the fraction of boards where every blank
+cell matches.
+
+The weight-transplant control (Section~\ref{sec:transplant}) copies one
+alphabet's row onto another's, creating a tie an unrestricted argmax
+would break by favoring whichever alphabet has the lower token offset,
+an implementation artifact, not anything the model computed. We
+therefore restrict the classifier head's argmax to the evaluated
+alphabet's own 9 logits (instead of all $9K$) whenever the transplant
+control is in play; this does not hand the model information it lacks,
+since which alphabet a puzzle belongs to is already visible in its own
+fixed cells. The pointer head needs no such fix, its candidate set
+already restricted to the puzzle's own tokens by construction.
+
+Because prediction is always restricted to the specific tokens a
+puzzle's own fixed cells establish as belonging to it, and every puzzle
+has a verified unique solution, exact match rate directly measures
+whether the model produced a legal completion (no repeated symbol in any
+row, column, or box). Cell accuracy remains a distinct, finer-grained
+per-cell measure.
 
 \subsection{Training protocol}
 
-All models are trained with AdamW, batch size 256, for 20 epochs unless
-otherwise noted, on a single A100 GPU per run. Full hyperparameters are
-listed in the Appendix.
+All models are trained with AdamW \citep{loshchilov2019decoupled}, batch
+size 256, for 20 epochs unless otherwise noted, on a single A100 GPU per
+run. Table~\ref{tab:hyperparams} (Appendix~\ref{app:hyperparams}) lists
+the full hyperparameters, including every condition's epoch count and
+seed count and the exceptions to these defaults.
 
 \section{Experiments and Results}
 \label{sec:results}
@@ -372,16 +377,20 @@ run.
 \subsection{Does the model discover the equivalence on its own?}
 \label{sec:naive}
 
-We train the classifier head on alphabet A only and, separately, on
-alphabet B only, plus a reference model trained on the union of both.
-Each single-alphabet model is evaluated three ways: on its own alphabet
-(\emph{self}); on the other alphabet, unaided (\emph{naive cross}); and
-on the other alphabet with the weight-transplant control applied
-(\emph{transplanted cross}).
+The classifier head's disjoint per-alphabet output rows mean it cannot
+use a row it never trained; that much is architectural. What is not
+settled is how total the resulting failure is, since a shared encoder
+processing both alphabets could plausibly leak some above-chance signal
+even through untrained output rows. We train the classifier head on
+alphabet A only, separately on alphabet B only, and (as a reference
+check) on their union, and evaluate each single-alphabet model three
+ways: on its own alphabet (\emph{self}); on the other, unaided
+(\emph{naive cross}); and on the other with the weight-transplant
+control applied (\emph{transplanted cross}).
 
 \begin{table}[h]
 \centering
-\small
+\footnotesize
 \begin{tabular}{llllr}
 \hline
 Model & Eval alphabet & Mode & Cell acc. & Exact match \\
@@ -395,20 +404,20 @@ B & A & transplanted cross & 99.46\% & 92.3\% \\
 random init & (either) & floor & 11.10--11.17\% & 0\% \\
 \hline
 \end{tabular}
-\caption{Naive cross-alphabet transfer lands exactly at the random-init
-floor; the transplant control recovers the self-eval number exactly.}
+\caption{Naive cross-alphabet transfer lands exactly at the random
+initialization floor; the transplant control recovers the \emph{self} mode's number exactly.}
 \label{tab:naive}
 \end{table}
 
-Naive cross-alphabet transfer lands exactly at the random-init floor: not
-somewhat worse than self-eval, but statistically indistinguishable from
-a network that was never trained at all. The transplant control recovers
-the self-eval number to four significant figures, with no retraining.
-The only thing separating 11\% from 99\% is knowing the symbol
-correspondence, not some deeper representational gap: the model's
-solving competence is bound to the specific tokens it trained on, and it
-does not spontaneously discover that a renamed puzzle is the same
-problem it already knows how to solve.
+Table~\ref{tab:naive} shows naive cross-alphabet transfer landing
+exactly at the random initialization floor: not somewhat worse than
+\emph{self}, but statistically indistinguishable from a network never
+trained at all. The transplant control recovers the self mode's number
+to four significant figures, with no retraining. The only thing
+separating 11\% from 99\% is knowing the symbol correspondence, not some
+deeper representational gap: solving competence is bound to the specific
+tokens trained on, and does not spontaneously discover that a renamed
+puzzle is the same problem already known how to solve.
 
 \subsection{Does more alphabet diversity help?}
 \label{sec:diversity1}
@@ -416,13 +425,490 @@ problem it already knows how to solve.
 Experiment~\ref{sec:naive} used one alphabet per model. We ask two
 further questions with a classifier pretrained on $K=6$ alphabets
 (A,B,C,D,F,G; E held out), 60{,}000 puzzles per alphabet, 20 epochs
-(99.57\% cell accuracy across all six by the end of training).
+(99.57\% cell accuracy across all six by the end of training; full
+settings in Table~\ref{tab:hyperparams}, Appendix~\ref{app:hyperparams}).
 
-\paragraph{Few-shot adaptation.} For held-out E, we compare two
-conditions given $n \in \{100, 1000\}$ labeled E-puzzles, 3 seeds each:
-\emph{finetune} freezes the entire pretrained body and lets only E's own
-embedding and output rows adapt; \emph{scratch} trains a fresh,
-unfrozen model on the same small data.
+\paragraph{Few-shot adaptation.} For held-out E, given $n \in \{100,
+1000\}$ labeled E-puzzles (3 seeds each), \emph{finetune} (freezing the
+pretrained body, adapting only E's own rows) and \emph{scratch} (a
+fresh, unfrozen model) are indistinguishable at $n=100$ (26.8\% vs.\
+26.5\% mean cell accuracy); at $n=1000$, scratch clearly wins (69.2\%
+vs.\ 39.5\%, finetune nearly flat across seeds). If the frozen body were
+a portable, alphabet-agnostic solving procedure, reusing it should have
+been easier than relearning everything from scratch; instead it is
+entangled with the specific alphabets it was trained on, not a clean,
+reusable abstraction (full numbers in Appendix~\ref{app:fewshot}).
+
+\paragraph{Mixed-alphabet compositional test.} Using the same $K=6$
+checkpoint, we recombine the 6 known alphabets instead of testing yet
+another one: each of the 9 roles independently selects one of the 6
+known alphabets to draw its token from, so the same alphabet can, and
+typically does, supply more than one role. We call one such
+role-to-alphabet assignment a \emph{trial}, evaluated once over the
+entire held-out test set. Throughout the paper we reuse the same 12
+fixed trials: \emph{control} (all 9 roles from alphabet A),
+\emph{maximally mixed} (roles cycle through all 6 alphabets in order),
+and 10 independently drawn \emph{random} trials, summarized by range and
+mean (full definitions in Appendix~\ref{app:trials}). The resulting
+combination was never presented as one coherent alphabet during
+training, even though every individual symbol is well learned.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lr}
+\hline
+Trial & Cell accuracy \\
+\hline
+control (all roles from alphabet A) & 99.49\% \\
+maximally mixed (9 roles, 6 alphabets, cycled) & 44.5\% \\
+10 random mixes & 23.2\%--70.8\% (mean 45.4\%, s.d.\ 12.4\%) \\
+\hline
+\end{tabular}
+\caption{Recombining known alphabets across the 12 fixed trials
+(Appendix~\ref{app:trials}): well above the roughly 11\% chance level,
+well below the 99\% ceiling, with accuracy tracking how coherent the
+specific recombination is.}
+\label{tab:mixed1}
+\end{table}
+
+Table~\ref{tab:mixed1} shows accuracy far above the roughly 11\% chance
+level but far below the 99\% ceiling, tracking how the trial's 9
+role-to-alphabet assignments are distributed: a trial where most roles
+draw from just one or two of the 6 alphabets scores high, while one
+spread evenly across all 6 scores low. The model has partial, graded
+compositional ability instead of a clean, disentangled binding of each
+symbol to its meaning.
+
+\subsection{Does removing the output-vocabulary bottleneck help?}
+\label{sec:pointer}
+
+We repeat the experiment with the same hyperparameters ($K=6$
+alphabets, 60{,}000 puzzles per alphabet, 20 epochs;
+Table~\ref{tab:hyperparams}), with the
+pointer head (Section~\ref{sec:method}) instead of the classifier head,
+same held-out E, for direct comparability.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lrr}
+\hline
+Condition & Cell accuracy & Exact match rate \\
+\hline
+In-distribution, A/B/C/D/F/G (each) & 99.3\% & 92.5\%--93.0\% \\
+Zero-shot, held-out E & 14.47\% & 0\% \\
+\hline
+\end{tabular}
+\caption{Same $K=6$ pointer-head checkpoint: in-distribution accuracy on
+each of the 6 known alphabets (without recombination, tested separately
+in Table~\ref{tab:mixed2}), versus zero-shot on held-out alphabet E (no
+fine-tuning, no E-puzzles seen during training).}
+\label{tab:pointer-gate}
+\end{table}
+
+Table~\ref{tab:pointer-gate}'s in-distribution row matches the
+classifier head's equivalent in-distribution check on this same $K=6$
+setup (99.57\% cell accuracy, Section~\ref{sec:diversity1}) almost
+exactly: swapping in the pointer head costs essentially nothing on the
+easy, in-distribution case. On the zero-shot row, zero percent
+board-level correctness is the more decisive number: not one of
+10{,}000 held-out boards was fully solved. The 14.47\% cell accuracy is a
+small but statistically real signal above the roughly 11.1\% chance
+floor, unlike the classifier's flat 11.8\% (Section~\ref{sec:diversity1}):
+the architecture change measurably changes what the model does with E's
+tokens, even though it never once produces a fully valid board.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lrrr}
+\hline
+Trial & Classifier & Pointer & $\Delta$ \\
+\hline
+control (all-A) & 99.5\% & 99.4\% & $\sim$0 \\
+maximally mixed cycle & 44.5\% & 34.9\% & $-9.6$pp \\
+floor across 10 random trials & 23.2\% & 34.4\% & -- \\
+mean of 10 random trials & 45.4\% (s.d.\ 12.4) & 52.8\% (s.d.\ 14.3) & $+7.4$pp \\
+\hline
+\end{tabular}
+\caption{Same mixed-alphabet protocol as Table~\ref{tab:mixed1}, same
+seeds, classifier versus pointer head. Full 12-trial breakdown in
+Appendix~\ref{app:mixed2}.}
+\label{tab:mixed2}
+\end{table}
+
+Table~\ref{tab:mixed2} shows a real average improvement, helping most on
+the classifier's worst trials (floor rises from 23.2\% to 34.4\%), though
+unevenly: 4 of 11 non-control trials get worse (Appendix~\ref{app:mixed2}),
+including the most systematic one (maximally mixed cycle). The
+architecture change helps more with the easier question (recombining
+known symbols) than the harder one (a truly novel symbol), in both cases
+by a modest instead of decisive margin. Why the pointer head shows any
+positive zero-shot signal at all, where the classifier shows none, is
+likely a property of the vector-equality comparison its architecture
+relies on; Section~\ref{sec:discussion} discusses this candidate
+explanation and its limits.
+
+\subsection{Does more training diversity close the gap?}
+\label{sec:diversity2}
+
+We test whether Section~\ref{sec:pointer}'s small zero-shot improvement
+depends on training diversity: with no architecture change, we apply
+Section~\ref{sec:diversity1}'s per-role random alphabet selection during
+training itself, instead of 6 fixed alphabets, and grow the alphabet
+pool from 6 to the full 25 non-E alphabets, so every training example
+draws a random set of 9 symbols from that larger collection.
+
+Training reaches 98.41\% cell accuracy on the held-out (also randomly
+mixed) validation set by epoch 19, over 20 epochs of $\sim$178{,}560
+fully-represented puzzles (no repetition needed, since every epoch's
+pass draws a new random assignment for each puzzle).
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lrr}
+\hline
+Condition & Cell accuracy & Exact match rate \\
+\hline
+In-distribution, all six alphabets & 98.2\% & 76.9\%--78.0\% \\
+Zero-shot E, fixed-alphabet training (\ref{sec:pointer}) & 14.47\% & 0\% \\
+Zero-shot E, random-mix training (this section) & 15.85\% & 0\% \\
+\hline
+\end{tabular}
+\caption{In-distribution accuracy, testing each alphabet as a pure
+coherent block as in Table~\ref{tab:pointer-gate}, and zero-shot transfer
+to held-out alphabet E, comparing this random-mix-trained model against
+Section~\ref{sec:pointer}'s fixed-alphabet pointer.}
+\label{tab:diversity2-gate}
+\end{table}
+
+The in-distribution row is notably lower than Section~\ref{sec:pointer}'s
+fixed-alphabet pointer (99.3\% cell, 92.5--93.0\% exact match), since
+this model almost never saw a pure single-alphabet puzzle during
+training, making a coherent alphabet itself a rare,
+close-to-out-of-distribution case for it. On zero-shot transfer to E,
+cell accuracy bumps up slightly but exact match rate stays at exactly
+0\%: training diversity, at least at this scale, does not meaningfully
+close the zero-shot gap.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{lrr}
+\hline
+ & Fixed-alphabet training (\ref{sec:pointer}) & Random-mix training (this section) \\
+\hline
+Cell acc., control (all-A) & 99.4\% & 98.2\% \\
+Cell acc., maximally mixed cycle & 34.9\% & 98.3\% \\
+Cell acc., range, 10 random trials & 34.4\%--76.3\% & 98.0\%--98.3\% \\
+Cell acc., mean, 10 random trials & 52.8\% (s.d.\ 14.3) & 98.2\% (s.d.\ 0.1) \\
+Cell acc., range, all 12 trials & 34.4\%--99.4\% & 98.0\%--98.3\% \\
+Exact match, range, all 12 trials & 0\%--92.6\% & 76.3\%--79.5\% \\
+\hline
+\end{tabular}
+\caption{The same 12 fixed trials as Tables~\ref{tab:mixed1}--\ref{tab:mixed2}
+(Appendix~\ref{app:trials}), for two training regimes of the pointer
+head. \emph{Range, all 12 trials}: lowest and highest value across all
+12 trials.}
+\label{tab:diversity2-mixed}
+\end{table}
+
+Table~\ref{tab:diversity2-mixed} shows the trial-to-trial variance seen
+in every earlier condition (classifier range 23--71\%, Table~\ref{tab:mixed1};
+fixed-alphabet pointer range 34--76\%, Table~\ref{tab:mixed2} and
+Appendix~\ref{app:mixed2}) has essentially vanished: all 12 trials now
+score within a 0.3 percentage-point band. Random-mix training exposes
+the model to an enormous number of recombinations of the same known
+letters, so no new combination is truly novel to it by the end of
+training; alphabet E, never in that pool, gets no such benefit, its
+embedding remaining exactly as untrained as ever. The same table shows
+this regime trades some peak performance for a large gain in
+consistency: narrow, fixed-alphabet training sharpens performance on
+familiar cases (coherent-alphabet exact match near 93\%) but leaves the
+model fragile outside them (0--93\% across mixed trials), while the
+constantly varying distribution costs some peak performance (77--79\%)
+for far more uniform behavior throughout (76--80\%).
+
+\subsection{Disentangling pool size from mixing exposure}
+\label{sec:disentangle}
+
+Section~\ref{sec:diversity2} changed two variables relative to
+Section~\ref{sec:pointer} at once: the alphabet pool grew from 6 to 25
+letters, and training switched from never mixing letters within a puzzle
+to always mixing them. Holding pool size fixed at Section~\ref{sec:pointer}'s
+6 letters while giving it Section~\ref{sec:diversity2}'s always-mixed
+training format reproduces the same tight, uniform band of mixed-alphabet
+accuracy seen with 25 letters, in fact slightly better (98.5--98.7\%
+versus 98.0--98.3\% cell accuracy; Appendix~\ref{app:disentangle}).
+Going from 6 to 25 letters bought essentially nothing extra for this
+sub-problem: the variable that matters is whether training ever exposes
+the model to within-puzzle mixing at all, not how large the alphabet
+pool is (full tables and per-trial figure in Appendix~\ref{app:disentangle}).
+
+On zero-shot transfer to held-out E, this condition reaches 11.46\% cell
+accuracy and 0\% exact match rate: the small positive signal seen in
+Sections~\ref{sec:pointer} (14.47\%) and \ref{sec:diversity2} (15.85\%)
+is essentially absent here, close to the roughly 11.1\% chance floor.
+Exact match rate stays at exactly 0\% across all three conditions, so
+the headline conclusion is unchanged either way, but this leaves open
+whether the weak signal in the other two conditions depends on genuine
+pool diversity or is simply run-to-run noise across single training runs
+(Section~\ref{sec:limitations}).
+
+\begin{figure}[!htb]
+\centering
+\includegraphics[width=0.62\textwidth]{figures/fig_zeroshot_E.pdf}
+\caption{Cell accuracy on held-out alphabet E, zero-shot, across every
+condition tested (Sections~\ref{sec:naive}--\ref{sec:disentangle}). No
+condition rises meaningfully above the $1/9$ chance floor, and exact
+match rate is exactly 0\% throughout: none of pretraining diversity, an
+alphabet-agnostic output mechanism, or exposure to within-puzzle mixing
+produces a single fully consistent completion on a symbol the model
+never trained on.}
+\label{fig:zeroshot-E}
+\end{figure}
+
+\section{Discussion}
+\label{sec:discussion}
+
+A single failure mode appears from every angle we tested, resolving into
+two sub-problems with different answers.
+\textbf{Recombining known symbols is solved by training diversity,
+specifically by mixing exposure instead of pool size.} Sections~\ref{sec:diversity1}
+and \ref{sec:pointer} showed graded, partial degradation on
+recombined-alphabet puzzles under training that never mixed alphabets
+within a puzzle; Section~\ref{sec:diversity2} showed that degradation
+essentially vanishes once training always mixes a large pool of letters;
+Section~\ref{sec:disentangle} located why, reproducing the same
+near-perfect uniformity with only 6 letters as long as training always
+mixes them. This part of the entanglement was, in the end, a matter of
+what the training distribution exposed the model to, and a cheap
+property to supply.
+
+\textbf{Transfer to a symbol never seen at all is not solved by anything
+we tried.} Neither the architectural change (Section~\ref{sec:pointer})
+nor either training-diversity condition
+(Sections~\ref{sec:diversity2}--\ref{sec:disentangle}) moved held-out
+alphabet E's exact match rate off exactly 0\%. Cell accuracy's small
+residual signal is less consistent than it first appeared, rising from
+11.8\% (Section~\ref{sec:diversity1}) to 14.47\% (\ref{sec:pointer}) to
+15.85\% (\ref{sec:diversity2}) but falling back to 11.46\%, close to
+chance, in Section~\ref{sec:disentangle}; whether this reflects a real
+dependence on pool diversity or run-to-run variation cannot be settled
+with one seed per condition. Either way, nothing tried gives the model a
+way to discover what an unseen symbol means well enough to produce a
+single fully valid board.
+
+The result underlying both halves is Section~\ref{sec:naive}'s
+transplant control: the model's procedure reuses across equivalent
+instances exactly, once told the symbol correspondence. Not the
+computation but the recognition step remains bound to specific training
+instances, consistent with the broader shortcut-learning literature
+\citep{geirhos2020shortcut}; every intervention here either supplies
+recognition capacity directly (the transplant control) or tries to
+induce it indirectly, and none of the indirect routes closed the harder
+half of the gap. One candidate account for the small residual signal in
+Sections~\ref{sec:pointer}--\ref{sec:diversity2}, absent in
+Section~\ref{sec:disentangle}: a ``do not repeat this symbol nearby''
+detector needs only compare two representations for equality, not know
+their content, so it could transfer to never-trained embeddings by
+accident (untested, left to future interpretability work). Since no
+data-side intervention touched the harder half of the gap, the most
+promising next step is architectural: a mechanism constraining
+computation to operate on similarity between representations by
+construction, instead of leaving that as one option among others.
+Abstractors \citep{altabaa2024abstractors} implement exactly this for
+Transformers, and are a natural candidate for closing what training-side
+changes could not.
+
+\section{Limitations}
+\label{sec:limitations}
+
+Every model here is a small transformer trained from scratch under fully
+controlled data; we make no claim about large pretrained models, whose
+training history spans far more surface variation than any single
+relabeling could add. This is deliberate: a large pretrained model could
+appear to recognize a relabeled puzzle's equivalence through mechanisms
+our setting excludes, e.g.\ chain-of-thought translation
+\citep{wei2022chain}, tool use, or memorized pretraining exposure to
+similar puzzles, none of which would show its own representations became
+alphabet-invariant \citep{yang2025emergent}.
+
+We deliberately study one domain, Sudoku, instead of several, and one
+equivalence transform, relabeling the symbol alphabet, out of several a
+puzzle could plausibly support (e.g.\ permuting rows and columns). The
+pointer head (Section~\ref{sec:pointer}) has a structural blind spot: it
+can only predict a token already present among a puzzle's own fixed
+cells, and 0.80\% of puzzles from our generator have one that does not;
+we filtered this out of training and left it in for evaluation. Most
+training conditions in Section~\ref{sec:results} are a single run (the
+few-shot sweep, Section~\ref{sec:diversity1}, is the exception, at 3
+seeds); the residual zero-shot signal (Section~\ref{sec:discussion})
+moved non-monotonically, possibly
+run-to-run noise, though exact match rate stayed at exactly 0\%
+regardless.
+
+\section{Conclusion}
+
+We provided a checkable operationalization of a question usually left
+informal, whether a model's competence transfers between instances of
+the same problem differing only in surface symbols, with a control
+separating a true failure to transfer reasoning from the simpler fact
+that some parameters were never trained. Applied to Sudoku, naive
+transfer fails completely, while the transplant control recovers full
+performance exactly: the model's procedure is reusable, but nothing in
+ordinary training lets it recognize, on its own, that a new instance
+calls for it. Recombining known symbols turned out to be a matter of
+training diversity and is now essentially solved; transferring to a
+symbol never encountered at all was untouched by every intervention we
+tried. That split result points clearly to what comes next: an
+architecture constraining its computation to operate on relations
+between representations, instead of merely allowing it to.
+
+\subsection*{AI use statement}
+
+AI tools (Claude Code) were used throughout the research and writing
+process as collaborative assistants, in an iterative feedback loop with
+the authors instead of autonomous generation of the research: the main
+research ideas and conceptual motivation originated from the authors,
+who continuously reviewed, discussed, and directed every subsequent
+step. Among tasks with required disclosure, we used generative AI to
+help develop and refine conceptual framing (operationalizing alphabet
+equivalence and the weight-transplant control), propose and refine
+hypotheses (e.g.\ the vector-equality account in
+Section~\ref{sec:discussion}), design and give feedback on research
+methodology and experiments (including the mixed-alphabet trial
+protocol and the disentangling ablation, Section~\ref{sec:disentangle}),
+implement methods (the model architectures, training, and evaluation
+code), generate the synthetic Sudoku dataset, and interpret results. We
+did not use generative AI tools to formulate mathematical claims,
+provide ingredients for or write proofs, assist with translation, or
+support qualitative or thematic data analysis; these are not applicable
+to this work. Among tasks with recommended disclosure, we used
+generative AI to draft and edit sections of this paper, search for and
+format relevant literature, create the paper's figures, and suggest
+this appendix's structure. All AI-assisted code, experimental
+procedures, results, and text were reviewed and verified by the
+authors, who determined the final content, methodology, and
+interpretation; we take responsibility for the final content of this
+work, including text, claims, or artifacts produced with the aid of
+generative AI.
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+\section{Appendix}
+
+This appendix follows the order of the paper.
+Section~\ref{app:hyperparams} lists the hyperparameters used.
+Section~\ref{app:trials} spells out the fixed mixed-alphabet trial
+protocol that Sections~\ref{sec:diversity1}--\ref{sec:diversity2} reuse
+and refer back to. Section~\ref{app:supplementary} gives the full
+numeric detail behind two results the main text summarizes.
+Section~\ref{app:disentangle} reports the disentangling experiment
+(Section~\ref{sec:disentangle}) in full, including its zero-shot
+result. Section~\ref{app:compute} accounts for the compute used.
+
+\subsection{Hyperparameters}
+\label{app:hyperparams}
+
+Table~\ref{tab:hyperparams} lists every hyperparameter used across the
+experiments in this paper, grouped by data generation, model
+architecture, and training. One condition deviates from these defaults;
+the paragraph after the table explains it.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}p{0.46\textwidth}p{0.46\textwidth}@{}}
+\hline
+\textbf{Data} & \\
+Puzzles generated & 200{,}000, once, canonical alphabet \\
+Givens per puzzle & 40 \\
+Split & 180k / 10k / 10k train/val/test, fixed indices \\
+\hline
+\textbf{Model (both heads)} & \\
+Encoder & 8-layer pre-norm Transformer, $d_{\text{model}}=384$, 8 heads \\
+Feedforward dimension & 1536 \\
+Dropout & 0.1 \\
+Positional embeddings & additive row/column/box embeddings \\
+Unrolled iterations & 1 (architecture supports more; unused here) \\
+Pointer query projection & $\mathrm{Linear}(d_{\text{model}}, d_{\text{model}})$ \\
+\hline
+\textbf{Training} & \\
+Optimizer & AdamW, lr $3\times10^{-4}$, weight decay $0.01$ \\
+Batch size & 256 \\
+Epochs, single/union alphabet (\ref{sec:naive}) & 30 \\
+Epochs, $K$-alphabet pretraining (\ref{sec:diversity1}--\ref{sec:disentangle}) & 20 \\
+Epochs, few-shot finetune/scratch sweep (\ref{sec:diversity1}) & 150 \\
+Seeds, few-shot finetune/scratch sweep & 3 (0, 1, 2) per $(n, \text{condition})$ \\
+Seeds, all other conditions & 1 \\
+\hline
+\end{tabular}
+\caption{Hyperparameters used across all experiments. Section labels
+indicate where each setting is first used.}
+\label{tab:hyperparams}
+\end{table}
+
+The few-shot \emph{finetune} condition (Section~\ref{sec:diversity1})
+uses weight decay $0$, not $0.01$. This condition adapts a model pretrained on
+$K=6$ alphabets to held-out alphabet E by freezing everything except
+E's own embedding and output rows: the shared encoder and positional
+embeddings are fully frozen, and the token-embedding and
+classifier-head rows belonging to alphabets other than the target one
+are kept fixed by masking their gradient as soon as it is computed,
+instead of zeroing it afterward. AdamW's weight decay shrinks every
+parameter on every step regardless of its gradient, so a masked-gradient
+row would still drift under the table's default nonzero weight decay;
+hence weight decay $0$ for this condition only.
+
+\FloatBarrier
+\subsection{Mixed-alphabet trial protocol}
+\label{app:trials}
+
+Sections~\ref{sec:diversity1}, \ref{sec:pointer}, and
+\ref{sec:diversity2} all evaluate the same fixed set of alphabet
+recombinations, reporting only their range and mean in the main text to
+keep the tables short. This section spells out exactly what each of
+those 12 trials is, so every summarized number in the paper traces back
+to a specific, reproducible assignment instead of an arbitrary sample.
+
+A \emph{trial} is a single, fixed choice of which alphabet supplies
+each of the 9 roles, evaluated once over the entire held-out test set
+to produce one accuracy number, not a repeated statistical sample. The
+12 fixed trials reused identically throughout the paper are: the
+\emph{control} trial, assigning all 9 roles to alphabet A (role
+$1{\to}A, 2{\to}A, \ldots, 9{\to}A$); the \emph{maximally mixed} trial,
+cycling through all 6 alphabets in order and wrapping around once it
+runs out of letters (role $1{\to}A, 2{\to}B, 3{\to}C, 4{\to}D,
+5{\to}F, 6{\to}G, 7{\to}A, 8{\to}B, 9{\to}C$); and 10 \emph{random}
+trials, each a separate, independently drawn assignment (one random
+trial might assign role $1{\to}D, 2{\to}A, 3{\to}G, \ldots$, a
+completely different, unrelated draw from the next). Each of the 12
+assignments is evaluated separately over the entire held-out test set,
+giving 12 separate accuracy numbers: the \emph{range} reports the
+lowest and highest of the 10 random trials, and the \emph{mean} reports
+their average.
+
+\subsection{Supplementary results for Sections~\ref{sec:diversity1}
+and~\ref{sec:pointer}}
+\label{app:supplementary}
+
+Two results in Section~\ref{sec:results} are summarized in the main
+text; this section reports both in full.
+Section~\ref{sec:diversity1}'s few-shot adaptation sweep is summarized
+there by its two headline conditions at $n=1000$; Table~\ref{tab:fewshot}
+below gives every condition at both sample sizes.
+Section~\ref{sec:pointer}'s classifier-versus-pointer comparison is
+summarized there by the floor and mean across the 10 random trials;
+Table~\ref{tab:mixed2-full} gives all 12 trials individually.
+
+\FloatBarrier
+\subsubsection{Few-shot adaptation to held-out alphabet E}
+\label{app:fewshot}
 
 \begin{table}[h]
 \centering
@@ -436,101 +922,25 @@ finetune (frozen body) & 26.8\% & 39.5\% \\
 scratch (unfrozen) & 26.5\% & 69.2\% \\
 \hline
 \end{tabular}
-\caption{Mean cell accuracy on E's held-out test split. At $n=1000$ the
+\caption{Mean cell accuracy on E's held-out test split, for the $K=6$
+pretrained classifier of Section~\ref{sec:diversity1}, given $n \in
+\{100, 1000\}$ labeled E-puzzles (3 seeds each). At $n=1000$ the
 finetune condition is nearly flat across all 3 seeds.}
 \label{tab:fewshot}
 \end{table}
 
-At $n=100$ the two conditions are indistinguishable. At $n=1000$,
-training from scratch clearly beats reusing the frozen pretrained body,
-and the finetune number barely moves across seeds, a real ceiling rather
-than noise. If the frozen body were a portable, alphabet-agnostic
-solving procedure, reusing it and only relearning vocabulary should have
-been easier than relearning everything from the same data. It was not:
-the shared network body is entangled with the specific alphabets it was
-trained on, not a clean, reusable abstraction.
+At $n=100$, finetune and scratch land within half a percentage point of
+each other, both barely above the 11.8\% zero-shot floor: 100 labeled
+examples is not enough for either condition to make much headway,
+frozen body or not. The gap only opens up at $n=1000$, where scratch
+pulls decisively ahead (69.2\% versus 39.5\%); the finetune condition's
+low seed-to-seed spread there suggests a stable ceiling on what the
+frozen pretrained body can support, instead of a noisy artifact of any
+one run.
 
-\paragraph{Mixed-alphabet compositional test.} Using the same $K=6$
-checkpoint, we recombine the 6 known alphabets instead of testing a new
-one: each of the 9 digit roles independently draws its symbol from a
-possibly different known alphabet, so the resulting combination was
-never presented as one coherent alphabet during training, even though
-every individual symbol is well learned.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lr}
-\hline
-Trial & Cell accuracy \\
-\hline
-control (all digits from alphabet A) & 99.49\% \\
-maximally mixed (9 digits, 6 alphabets, cycled) & 44.5\% \\
-10 random mixes & 23.2\%--70.8\% (mean 45.4\%, s.d.\ 12.4\%) \\
-\hline
-\end{tabular}
-\caption{Recombining known alphabets: well above chance, well below the
-99\% ceiling, with accuracy tracking how coherent the specific
-recombination is.}
-\label{tab:mixed1}
-\end{table}
-
-Accuracy is far above the roughly 11\% chance level but far below the
-99\% ceiling, and it tracks how coherent the specific mix is: dominated
-by one alphabet scores high, spread evenly across many scores low. Both
-results point the same way: the model has partial, graded compositional
-ability instead of a clean, disentangled binding of each symbol to its
-meaning.
-
-\subsection{Does removing the output-vocabulary bottleneck help?}
-\label{sec:pointer}
-
-We repeat the $K=6$/60{,}000-per-alphabet/20-epoch protocol with the
-pointer head (Section~\ref{sec:method}) instead of the classifier head,
-same held-out E, for direct comparability.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lrr}
-\hline
-Alphabet & Cell accuracy & Valid rate \\
-\hline
-A, B, C, D, F, G (each) & 99.3\% & 92.5\%--93.0\% \\
-\hline
-\end{tabular}
-\caption{In-distribution gate: matches the classifier's ceiling; the
-architecture change costs nothing on the easy case.}
-\label{tab:pointer-gate}
-\end{table}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lr}
-\hline
-Metric & Held-out alphabet E \\
-\hline
-Cell accuracy & 14.47\% \\
-Exact match rate & 0\% \\
-Valid rate & 0\% \\
-\hline
-\end{tabular}
-\caption{Zero-shot transfer to a never-seen alphabet.}
-\label{tab:pointer-zeroshot}
-\end{table}
-
-Valid rate is the more decisive number here. There are $9!$ equally
-valid relabelings of any solution, so a model that had learned to
-produce some internally consistent completion, even one that does not
-match our specific labeling, would show a nonzero valid rate; zero out
-of 10{,}000 boards rules that out entirely. The 14.47\% cell accuracy is
-a small but statistically real signal above the roughly 11.1\% chance
-floor (with about 410{,}000 blank test cells, the gap is far larger than
-sampling noise would allow), unlike the classifier's flat 11.8\% in
-Section~\ref{sec:diversity1}. Removing the fixed-vocabulary bottleneck
-was necessary but not sufficient: it gave a small edge, not the clean
-transfer we set out to test for.
+\FloatBarrier
+\subsubsection{Full mixed-alphabet per-trial breakdown}
+\label{app:mixed2}
 
 \begin{table}[h]
 \centering
@@ -555,161 +965,42 @@ random 9 & 46.3\% & 58.7\% & $+12.4$pp \\
 mean of 10 random trials & 45.4\% (s.d.\ 12.4) & 52.8\% (s.d.\ 14.3) & $+7.4$pp \\
 \hline
 \end{tabular}
-\caption{Same mixed-alphabet protocol as Table~\ref{tab:mixed1}, same
-seeds, classifier versus pointer head.}
-\label{tab:mixed2}
+\caption{Full per-trial breakdown behind Table~\ref{tab:mixed2}, same
+mixed-alphabet protocol as Table~\ref{tab:mixed1} (Appendix~\ref{app:trials}),
+same seeds, classifier versus pointer head.}
+\label{tab:mixed2-full}
 \end{table}
 
-A real average improvement, and the pointer head helps most on the
-classifier's worst trials: the two largest gains land on the
-classifier's two lowest scores, and the floor across all trials rises
-from 23.2\% to 34.4\%. But the improvement is uneven; 4 of the 11
-non-control trials get worse, including the most systematic one
-(maximally mixed cycle). The architecture change helps more with the
-easier question (recombining known symbols) than the harder one (a
-truly novel symbol), in both cases by a modest instead of decisive
-margin.
-
-One candidate explanation for why the pointer head shows any positive
-zero-shot signal at all, where the classifier shows none: the
-classifier's failure was total because no mechanism let gradient reach
-an untrained output row. The pointer head's E-alphabet embeddings are
-also untrained, at their random initialization, but every occurrence of
-a given E-symbol within one puzzle uses the identical random vector, and
-detecting that two positions hold the same vector is a property of
-equality between representations, not of their content. A ``do not
-repeat a symbol within this row, column, or box'' mechanism built on
-that kind of comparison could plausibly fire correctly even for
-never-trained tokens. This would predict the observed pattern (a weak
-but real signal, far from a solved task) but has not been verified
-directly; Section~\ref{sec:discussion} discusses it as a candidate for
-future interpretability work, not a settled finding.
-
-\subsection{Does more training diversity close the gap?}
-\label{sec:diversity2}
-
-Section~\ref{sec:pointer} left a real but small zero-shot improvement
-unexplained. Two candidate explanations motivate this experiment: the
-$K=6$ pretraining alphabets were each repeated across 20 epochs, letting
-the model partially memorize those 6 specific combinations; or something
-more structural limits the pointer head regardless of training
-diversity. We test the first explanation directly, at low cost, reusing
-the pointer architecture from Section~\ref{sec:pointer} without any code
-change to the model itself: instead of 6 fixed alphabets, every single
-training example draws an independently random digit-to-letter mapping,
-fresh, from a pool of 25 non-E letters (each of the 9 digit roles
-independently, not one random coherent alphabet per puzzle). No fixed
-combination is ever repeated for the model to memorize.
-
-Training reaches 98.41\% cell accuracy on the held-out (also randomly
-mixed) validation set by epoch 19, over 20 epochs of $\sim$178{,}560
-fully-represented puzzles (no repetition needed, since every epoch's
-pass already gives each puzzle a fresh mix).
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lr}
-\hline
-Metric & All six known alphabets \\
-\hline
-Cell accuracy & 98.2\% \\
-Valid rate & 76.9\%--78.0\% \\
-\hline
-\end{tabular}
-\caption{In-distribution gate, testing each alphabet as a pure coherent
-block, as in Table~\ref{tab:pointer-gate}.}
-\label{tab:diversity2-gate}
-\end{table}
-
-This is notably lower than Section~\ref{sec:pointer}'s fixed-alphabet
-pointer (99.3\% cell, 92.5--93.0\% valid). This model almost never saw a
-pure single-alphabet puzzle during training, since each of the 9 digit
-roles is drawn independently from 25 letters, so a coherent alphabet is
-itself a rare, close-to-out-of-distribution case for it, unlike for the
-fixed-alphabet-trained model.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lrr}
-\hline
-Metric & Fixed alphabets (\ref{sec:pointer}) & Random mix (this section) \\
-\hline
-Cell accuracy & 14.47\% & 15.85\% \\
-Valid rate & 0\% & 0\% \\
-\hline
-\end{tabular}
-\caption{Zero-shot transfer to held-out alphabet E.}
-\label{tab:diversity2-zeroshot}
-\end{table}
-
-A small additional bump in cell accuracy, but valid rate stays at
-exactly 0\%: the same categorical failure as before, now even under a
-training distribution spanning 25 letters with a fresh random
-combination on every example. Training diversity, at least at this
-scale, does not meaningfully close the zero-shot gap.
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{lrr}
-\hline
-Metric & Fixed alphabets (\ref{sec:pointer}) & Random mix (this section) \\
-\hline
-Control (all-A) & 99.4\% & 98.2\% \\
-Maximally mixed cycle & 34.9\% & 98.3\% \\
-Range, 10 random trials & 34.4\%--76.3\% & 98.0\%--98.3\% \\
-Mean, 10 random trials & 52.8\% (s.d.\ 14.3) & 98.2\% (s.d.\ 0.1) \\
-Valid-rate range, all 12 trials & 0\%--92.6\% & 76.3\%--79.5\% \\
-\hline
-\end{tabular}
-\caption{Same mixed-alphabet protocol and seeds as
-Tables~\ref{tab:mixed1}--\ref{tab:mixed2}.}
-\label{tab:diversity2-mixed}
-\end{table}
-
-The trial-to-trial variance seen in every earlier condition (classifier
-23--71\%, fixed-alphabet pointer 34--76\%) has essentially vanished:
-every one of the 12 trials, from the coherent control to the most
-aggressively mixed random draw, now scores within a 0.3 percentage-point
-band. Random-mix training exposes the model to an enormous number of
-recombinations of the same 25 known letters; by the end of training it
-has effectively seen every letter co-occurring with every other letter
-in nearly every digit-role position, many times over, so no new
-combination of already-known letters is truly novel to it anymore. But
-alphabet E was never in that pool at all, so recombining other letters
-injects no information into E's specific embedding, which remains
-exactly as untrained as it always was. Training diversity fixes whether
-the model has seen a given combination of known symbols before; it does
-not fix whether the model has ever seen a given symbol at all. This
-training regime also trades some peak performance (coherent-alphabet
-valid rate drops from about 93\% to 77--79\%) for a large gain in
-consistency across the whole combinatorial space (valid-rate range
-collapses from 0--93\% to 76--80\%), an ordinary specialist-versus-
-generalist trade-off.
+The $\Delta$ column is itself highly variable, from $-11.3$pp (random 0,
+the pointer head's worst trial relative to the classifier) to $+37.1$pp
+(random 5, its best), a spread almost as wide as the trials' raw
+accuracy range. On any single recombination, then, which architecture
+wins is close to a coin flip; it is only in aggregate, across many
+trials, that the pointer head's advantage on this sub-problem becomes
+visible (mean $+7.4$pp). This is consistent with the main text's
+reading (Section~\ref{sec:pointer}): the architecture change is a real
+but modest help, not a decisive fix for any one puzzle.
 
 \subsection{Disentangling pool size from mixing exposure}
-\label{sec:disentangle}
+\label{app:disentangle}
 
-Section~\ref{sec:diversity2} changed two variables relative to
-Section~\ref{sec:pointer} at once: the alphabet pool grew from 6 to 25
-letters, and training switched from never mixing letters within a puzzle
-to always mixing them. This experiment holds pool size fixed at
-Section~\ref{sec:pointer}'s level (the identical 6 letters, and an
-identical vocabulary size) while giving it Section~\ref{sec:diversity2}'s
-always-mixed training format, to find out which variable actually drove
-the variance collapse.
+Section~\ref{sec:disentangle} asks which of the two variables
+Section~\ref{sec:diversity2} changed at once, relative to
+Section~\ref{sec:pointer}, actually drove the collapse in
+trial-to-trial variance: growing the alphabet pool from 6 letters to
+25, or exposing training to within-puzzle mixing at all. This
+condition isolates the second variable alone, training the pointer
+head on Section~\ref{sec:pointer}'s original 6 letters but with
+Section~\ref{sec:diversity2}'s always-mixed training format.
 
 \begin{table}[h]
 \centering
 \small
 \begin{tabular}{lrrr}
 \hline
-Metric & $K{=}6$, never mixed & $K{=}25$, always mixed & $K{=}6$, always mixed \\
+Cell accuracy & $K{=}6$, never mixed & $K{=}25$, always mixed & $K{=}6$, always mixed \\
 \hline
 Range, 10 random trials & 34.4\%--76.3\% & 98.0\%--98.3\% & 98.5\%--98.7\% \\
-Valid-rate range, 12 trials & 0\%--92.6\% & 76.3\%--79.5\% & 81.0\%--84.3\% \\
 \hline
 \end{tabular}
 \caption{Mixed-alphabet compositional test under three training
@@ -717,16 +1008,33 @@ conditions.}
 \label{tab:disentangle-mixed}
 \end{table}
 
-With only 6 letters, the same pool that showed 34--76\% variance in
-Section~\ref{sec:pointer}, training with always-mixed puzzles reproduces
-the same tight, uniform band seen with 25 letters in
-Section~\ref{sec:diversity2}, in fact slightly better (98.5--98.7\% versus
-98.0--98.3\%, and 81--84\% versus 76--80\% valid rate), plausibly because
-learning capacity is not spread across as many distinct symbols. Going
-from 6 to 25 letters bought essentially nothing extra for this
-sub-problem. The variable that matters is whether training ever exposes
-the model to within-puzzle mixing at all, not how large the alphabet
-pool is.
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrr}
+\hline
+Exact match rate & $K{=}6$, never mixed & $K{=}25$, always mixed & $K{=}6$, always mixed \\
+\hline
+Range, 12 trials & 0\%--92.6\% & 76.3\%--79.5\% & 81.0\%--84.3\% \\
+\hline
+\end{tabular}
+\caption{Same 12 trials and three training conditions as
+Table~\ref{tab:disentangle-mixed}, board-level metric instead of cell
+accuracy.}
+\label{tab:disentangle-mixed-exact}
+\end{table}
+
+The answer is mixing exposure, not pool size. Table~\ref{tab:disentangle-mixed}
+shows that, with only 6 letters, always-mixed training reproduces --
+and, on cell accuracy, marginally beats -- the tight band achieved with
+25 letters (98.5--98.7\% versus 98.0--98.3\%), and
+Table~\ref{tab:disentangle-mixed-exact} shows the same pattern on the
+stricter board-level metric (81--84\% versus 76--80\% exact match). The
+6-letter condition's slight edge is consistent with the same learning
+capacity being spread across fewer distinct symbols. Growing the pool
+fivefold, from 6 to 25 letters, therefore bought essentially nothing
+for this sub-problem on its own; what matters is whether training ever
+exposes the model to within-puzzle mixing at all.
 
 \begin{figure}[h]
 \centering
@@ -745,222 +1053,29 @@ training pool contains.}
 \label{fig:mixed-alphabet}
 \end{figure}
 
-Figure~\ref{fig:mixed-alphabet} makes this collapse visible across the
-full arc of conditions tested: wide, trial-dependent spread under
-never-mixed training, tight clustering near the ceiling under
-always-mixed training, in both the 25-letter and 6-letter pools.
+Figure~\ref{fig:mixed-alphabet} places all four conditions side by
+side: wide, trial-dependent spread under never-mixed training (the two
+leftmost columns), collapsing to a tight cluster near the ceiling the
+moment training always mixes alphabets within a puzzle (the two
+rightmost columns), regardless of whether the pool behind that mixing
+has 6 letters or 25.
 
-On zero-shot transfer to held-out E, this condition reaches 11.46\% cell
-accuracy and 0\% valid rate. The small positive zero-shot signal seen in
-Sections~\ref{sec:pointer} (14.47\%) and \ref{sec:diversity2} (15.85\%)
-is essentially absent here, close to the roughly 11.1\% chance floor.
-Valid rate stays at exactly 0\% across all three conditions, so the
-headline conclusion is unchanged either way, but this leaves open
-whether the weak signal in the other two conditions depends on genuine
-pool diversity or is simply run-to-run noise: each condition here is a
-single training run, so we flag this as a real open question instead of
-a resolved finding (Section~\ref{sec:limitations}).
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/fig_zeroshot_E.pdf}
-\caption{Cell accuracy on held-out alphabet E, zero-shot, across every
-condition tested (Sections~\ref{sec:naive}--\ref{sec:disentangle}). No
-condition rises meaningfully above the $1/9$ chance floor, and valid
-rate is exactly 0\% throughout: none of pretraining diversity, an
-alphabet-agnostic output mechanism, or exposure to within-puzzle mixing
-produces a single fully consistent completion on a symbol the model
-never trained on.}
-\label{fig:zeroshot-E}
-\end{figure}
-
-Figure~\ref{fig:zeroshot-E} places all five zero-shot-on-E numbers side
-by side: cell accuracy moves within a narrow, low band across every
-intervention, while valid rate never leaves zero.
-
-\section{Discussion}
-\label{sec:discussion}
-
-A single failure mode appears from every angle we tested, and it
-resolves into two sub-problems with different answers.
-
-\textbf{Recombining known symbols is solved by training diversity,
-specifically by mixing exposure instead of pool size.}
-Sections~\ref{sec:diversity1} and \ref{sec:pointer} both showed graded,
-partial degradation on recombined-alphabet puzzles under training that
-never mixed alphabets within a puzzle; Section~\ref{sec:diversity2}
-showed that degradation essentially vanishes once training always mixes
-a large pool of letters; Section~\ref{sec:disentangle} located why, by
-reproducing the same near-perfect uniformity with only 6 letters, as
-long as training always mixes them. This part of the entanglement was,
-in the end, a matter of what the training distribution exposed the model
-to, and a cheap property to supply.
-
-\textbf{Transfer to a symbol never seen at all is not solved by anything
-we tried.} Neither the architectural change in Section~\ref{sec:pointer}
-nor either training-diversity condition in
-Sections~\ref{sec:diversity2}--\ref{sec:disentangle} moved held-out
-alphabet E's valid rate off exactly 0\%. Cell accuracy's small residual
-signal is less consistent than it first appeared: it rose from 11.8\% in
-Section~\ref{sec:diversity1}'s classifier baseline to 14.47\% in
-Section~\ref{sec:pointer} to 15.85\% in Section~\ref{sec:diversity2}, but
-fell back to 11.46\%, close to chance, in Section~\ref{sec:disentangle}.
-Whether that pattern reflects a real dependence on pool diversity or
-simply run-to-run variation across a narrow band is not settled by a
-single run per condition; either way, valid rate never once moved, so
-nothing tried so far gives the model a way to discover what an unseen
-symbol means well enough to produce a single fully valid board.
-
-The result underlying both halves of this picture is
-Section~\ref{sec:naive}'s transplant control: the model's procedure
-reuses across equivalent instances exactly, once it is told the symbol
-correspondence. Read against the framing in Section~1, this sharpens
-what ``concrete'' actually means for these models. It is not that the
-computation itself fails to generalize; handed the correspondence, it
-transfers perfectly. What remains bound to specific training instances
-is the recognition step, the part that would let the model notice, on
-its own, that a new instance calls for the procedure it already has.
-Every intervention in this paper either supplies more of that
-recognition capacity directly (the transplant control) or tries to
-induce it indirectly through architecture or data, and only the indirect
-routes were tested at scale; none closed the harder half of the gap.
-
-One candidate account for the small residual signal in
-Sections~\ref{sec:pointer} and~\ref{sec:diversity2}, and its absence in
-Section~\ref{sec:disentangle}, is the vector-equality mechanism sketched
-in Section~\ref{sec:pointer}: a ``do not repeat this symbol nearby''
-detector that only needs two representations to be compared for
-equality, not for their content to be known, could transfer to
-never-trained embeddings by accident, and could plausibly depend on how
-much practice the model gets comparing many distinct vectors during
-training. This is consistent with the pattern observed but has not been
-tested directly; confirming it would need an interpretability probe
-comparing attention or compatibility patterns on held-out E's cells
-against the same puzzle in a known alphabet, which we leave to future
-work.
-
-Given that no data-side intervention touched the harder half of the gap,
-the most promising next step is architectural: a mechanism that
-constrains computation to operate on similarity between representations
-by construction, instead of leaving that as one option among others the
-way the pointer head in Section~\ref{sec:pointer} does. Abstractors
-\citep{altabaa2024abstractors} implement exactly this idea for
-Transformers through relational cross-attention, and are a natural
-candidate for closing what training-side changes could not.
-
-\section{Limitations}
-\label{sec:limitations}
-
-Every model in this paper is a small transformer trained from scratch
-under fully controlled data; we make no claim about how these findings
-would look in a large pretrained model, whose training history already
-spans far more surface variation than any single alphabet-relabeling
-manipulation could add. Section~\ref{sec:related} discusses one recent
-result suggesting a related distinction is visible inside pretrained
-LLMs too \citep{yang2025emergent}, but we did not test this directly.
-
-We deliberately study one domain, Sudoku, instead of several; this
-keeps every comparison across experiments over identical underlying
-puzzles, at the cost of not yet knowing how much of what we find is
-specific to this domain's particular constraint structure. Within that
-domain, we study one equivalence transform, relabeling the symbol
-alphabet, out of several a puzzle could plausibly support (permuting
-rows and columns, or changing notation, for instance); whether these
-other transforms produce the same recognition gap is untested.
-
-The pointer head (Section~\ref{sec:pointer}) has a structural blind
-spot: it can only predict a digit whose token already appears among a
-puzzle's own givens, and 0.80\% of puzzles from our generator have at
-least one digit that does not. We measured this directly instead of
-assuming it away, filtered it out of training, and left it in for
-evaluation, but the architecture is mechanically unable to solve those
-puzzles regardless of how well it has otherwise learned.
-
-Most training conditions in Section~\ref{sec:results} are a single run;
-the few-shot sweep in Section~\ref{sec:diversity1} is the exception, at
-3 seeds. The residual zero-shot cell-accuracy signal discussed in
-Section~\ref{sec:discussion} moved across a narrow, non-monotonic range
-between conditions, and we cannot currently rule out that this
-particular pattern is run-to-run variation instead of a real effect of
-pool diversity; every condition's valid rate, our primary and more
-decisive metric, is unaffected by this uncertainty, since it stayed at
-exactly 0\% throughout.
-
-\section{Conclusion}
-
-We gave a checkable operationalization of a question usually left
-informal, whether a model's competence transfers between instances of
-the same problem that differ only in surface symbols, together with a
-control that separates a true failure to transfer reasoning from the
-simpler fact that some parameters were never trained. Applied to
-Sudoku, naive transfer across a relabeled alphabet fails completely,
-while the transplant control recovers full performance exactly: the
-model's procedure is reusable, but nothing in ordinary training gives it
-a way to recognize, on its own, that a new instance calls for it. Across
-several attempts to close that gap, one sub-problem, recombining symbols
-the model already knows, turned out to be a matter of training
-diversity and is now essentially solved; the other, transferring to a
-symbol the model has never encountered at all, was untouched by every
-architectural and data-side intervention we tried. That split result is
-itself the clearest signal for where to look next: an architecture that
-constrains its computation to operate on relations between
-representations, instead of merely allowing it to, is now the
-best-motivated remaining direction.
-
-\bibliography{references}
-\bibliographystyle{iclr2026_conference}
-
-\appendix
-\section{Appendix}
-
-\subsection{Hyperparameters}
-
-\begin{table}[h]
-\centering
-\small
-\begin{tabular}{@{}p{0.46\textwidth}p{0.46\textwidth}@{}}
-\hline
-\textbf{Data} & \\
-Puzzles generated & 200{,}000, once, canonical alphabet \\
-Given clues per puzzle & 40 \\
-Split & 180k / 10k / 10k train/val/test, fixed indices \\
-\hline
-\textbf{Model (both heads)} & \\
-Encoder & 8-layer pre-norm Transformer, $d_{\text{model}}=384$, 8 heads \\
-Feedforward dimension & 1536 \\
-Dropout & 0.1 \\
-Positional embeddings & additive row/column/box embeddings \\
-Unrolled iterations & 1 (architecture supports more; unused here) \\
-Pointer query projection & $\mathrm{Linear}(d_{\text{model}}, d_{\text{model}})$, always used \\
-\hline
-\textbf{Training} & \\
-Optimizer & AdamW, lr $3\times10^{-4}$, weight decay $0.01$ \\
-Batch size & 256 \\
-Epochs, single/union alphabet (\ref{sec:naive}) & 30 \\
-Epochs, $K$-alphabet pretraining (\ref{sec:diversity1}--\ref{sec:disentangle}) & 20 \\
-Epochs, few-shot finetune/scratch sweep (\ref{sec:diversity1}) & 150 \\
-Seeds, few-shot finetune/scratch sweep & 3 (0, 1, 2) per $(n, \text{condition})$ \\
-Seeds, all other conditions & 1 \\
-\hline
-\end{tabular}
-\caption{Hyperparameters used across all experiments. Section labels
-indicate where each setting is first used.}
-\label{tab:hyperparams}
-\end{table}
-
-For the frozen-body condition of Section~\ref{sec:diversity1}, the shared
-encoder and positional embeddings are frozen via
-\texttt{requires\_grad\_(False)}, and the token-embedding and
-classifier-head rows belonging to alphabets other than the target one are
-kept fixed by masking their gradient at the moment autograd produces it
-(a backward hook), instead of by zeroing gradients after the fact. This
-matters because AdamW's weight decay shrinks every parameter on every
-step regardless of its gradient, so a masked-gradient row would still
-drift under nonzero weight decay; the finetuning optimizer therefore uses
-weight decay $0$ for this condition only, overriding the value in
-Table~\ref{tab:hyperparams}.
+The main text omits this condition's zero-shot transfer to held-out
+alphabet E for space; we report it here for completeness. It reaches
+11.46\% cell accuracy and 0\% exact match rate, close to the roughly
+11.1\% chance floor and the weakest of the three zero-shot cell-accuracy
+numbers reported in this paper (versus 14.47\% for
+Section~\ref{sec:pointer}'s fixed-alphabet pointer and 15.85\% for
+Section~\ref{sec:diversity2}'s 25-letter random mix). Exact match rate
+is 0\% in all three conditions regardless, so the paper's headline
+conclusion, that transfer to a truly novel symbol is unsolved, is
+unaffected either way; whether this specific ordering of cell-accuracy
+numbers reflects a real dependence on alphabet-pool diversity or simply
+run-to-run noise cannot be settled with a single seed per condition
+(Section~\ref{sec:limitations}).
 
 \subsection{Compute}
+\label{app:compute}
 
 All experiments ran on Leonardo (CINECA EuroHPC), a single NVIDIA A100
 GPU per job. For Section~\ref{sec:naive}'s single- and union-alphabet
@@ -1001,20 +1116,5 @@ usage where available (Section~\ref{sec:naive}) came in roughly half of
 the requested budget.}
 \label{tab:compute}
 \end{table}
-
-\subsection{An ablation we did not run}
-
-The pointer head's query is computed via a learned linear projection of
-the blank cell's representation before it is compared against candidate
-embeddings (Section~\ref{sec:method}). The implementation also supports
-skipping this projection and comparing the raw encoder output directly
-against candidate embeddings (\texttt{use\_query\_projection=False}), a
-cheaper variant motivated by the pointer-network and copy-mechanism
-literature we build on \citep{vinyals2015pointer,see2017get}. Every
-result reported in this paper uses the learned projection; the raw
-variant was never trained or evaluated, so we cannot say whether it
-would change the zero-shot transfer results in
-Sections~\ref{sec:pointer}--\ref{sec:disentangle}. We leave it as an
-open, cheap ablation for future work.
 
 \end{document}

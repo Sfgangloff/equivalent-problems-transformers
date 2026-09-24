@@ -1,3 +1,5 @@
+"""Tests for the pointer-model datasets (sudoku/pointer_dataset.py)."""
+
 import random
 import subprocess
 import sys
@@ -21,6 +23,7 @@ TINY_DATA = REPO_ROOT / "data" / "sudoku_tiny.npz"
 
 @pytest.fixture(scope="module", autouse=True)
 def ensure_tiny_dataset():
+    """Generate the tiny fixture dataset once per test module, if not already present."""
     if not TINY_DATA.exists():
         subprocess.run(
             [sys.executable, "scripts/generate_sudoku.py", "--config", "configs/tiny.yaml"],
@@ -30,6 +33,7 @@ def ensure_tiny_dataset():
 
 
 def _make_npz(tmp_path, puzzles, solutions, splits):
+    """Write a minimal, hand-built base `.npz` dataset for a single-purpose test."""
     path = tmp_path / "data.npz"
     np.savez(
         path,
@@ -41,6 +45,7 @@ def _make_npz(tmp_path, puzzles, solutions, splits):
 
 
 def test_target_slot_matches_known_answer(tmp_path):
+    """Each blank cell's target_slot points to the candidate holding its true digit."""
     rng = random.Random(0)
     solution = generate_full_grid(rng)
     puzzle = list(solution)
@@ -66,6 +71,8 @@ def test_target_slot_matches_known_answer(tmp_path):
 
 
 def test_puzzle_missing_a_digit_from_givens_is_filtered_when_requested(tmp_path):
+    """A puzzle missing a digit from its givens is dropped when filtering, kept
+    (with a -1 target_slot sentinel for that digit's cells) when not."""
     rng = random.Random(1)
     solution = generate_full_grid(rng)
     puzzle = list(solution)
@@ -94,6 +101,7 @@ def test_puzzle_missing_a_digit_from_givens_is_filtered_when_requested(tmp_path)
 
 
 def test_fully_represented_mask_vectorized_matches_hand_built_case():
+    """_fully_represented_mask flags puzzles missing a digit from their givens."""
     puzzles = np.array(
         [
             [1, 2, 3, 4, 5, 6, 7, 8, 9] + [0] * 72,  # all 9 digits present
@@ -106,6 +114,7 @@ def test_fully_represented_mask_vectorized_matches_hand_built_case():
 
 
 def test_multi_alphabet_pointer_dataset_is_k_way_concatenation_of_same_subset():
+    """The K-way pointer dataset repeats the same puzzle subset once per letter."""
     letters = ["A", "B", "C", "D", "F", "G"]  # non-contiguous (skips E), matches train_pointer.py's real usage
     n = 20
     multi = multi_alphabet_pointer_dataset(TINY_DATA, "train", letters, n_puzzles=n, seed=0)
@@ -120,6 +129,8 @@ def test_multi_alphabet_pointer_dataset_is_k_way_concatenation_of_same_subset():
 
 
 def test_mixed_alphabet_pointer_control_matches_plain_pointer_dataset():
+    """A mixed mapping that sends every digit to the same letter matches
+    PointerSudokuDataset bit-for-bit on every field."""
     # digit_to_letter mapping every digit to the SAME letter reconstructs
     # that plain alphabet exactly -- candidate/target fields must match
     # PointerSudokuDataset bit-for-bit (this is the control trial used by
@@ -145,6 +156,7 @@ def test_mixed_alphabet_pointer_control_matches_plain_pointer_dataset():
 
 
 def test_random_mix_draws_a_fresh_mapping_on_every_access():
+    """Repeated accesses to the same index yield different relabelings."""
     from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset
 
     letters = ["A", "B", "C", "D", "F", "G"]
@@ -159,6 +171,7 @@ def test_random_mix_draws_a_fresh_mapping_on_every_access():
 
 
 def test_random_mix_only_draws_from_source_letters():
+    """Every token in a random-mix puzzle comes from one of the allowed source letters."""
     from src.equiv.sudoku.alphabets import offset_for_letter
     from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset
 
@@ -173,6 +186,7 @@ def test_random_mix_only_draws_from_source_letters():
 
 
 def test_random_mix_respects_filter_fully_represented():
+    """filter_fully_represented=True keeps exactly the puzzles _fully_represented_mask selects."""
     from src.equiv.sudoku.pointer_dataset import RandomMixPointerDataset, _fully_represented_mask
 
     letters = ["A", "B", "C"]

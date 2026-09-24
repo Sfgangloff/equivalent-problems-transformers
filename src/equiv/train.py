@@ -45,6 +45,7 @@ from src.equiv.utils import pick_device  # noqa: E402
 
 
 def build_dataset(base_path: str, split: str, alphabet: str):
+    """Return the requested split as a single alphabet's dataset, or the A+B union."""
     if alphabet == "union":
         return union_dataset(base_path, split)
     return SudokuDataset(base_path, split, alphabet)
@@ -53,6 +54,7 @@ def build_dataset(base_path: str, split: str, alphabet: str):
 def compute_loss(
     all_logits: list[torch.Tensor], solution: torch.Tensor, blank_mask: torch.Tensor
 ) -> torch.Tensor:
+    """Average cross-entropy over blank cells, across every unrolled iteration's logits."""
     target_classes = solution - 1  # token id -> class index, see sudoku/alphabets.py
     loss = torch.zeros((), device=solution.device)
     for logits in all_logits:
@@ -64,6 +66,12 @@ def compute_loss(
 def evaluate_split(
     model: SudokuTransformer, loader: DataLoader, device: torch.device, alphabet: str | None
 ) -> tuple[float, float]:
+    """Run one no-grad pass over `loader`, returning (mean loss, cell accuracy).
+
+    `alphabet` controls whether the argmax is restricted to that alphabet's
+    own class range (see the comment below); pass `None` for a union or
+    multi-alphabet loader, whose batches mix alphabets.
+    """
     # Restricting to a single class_range only makes sense for a loader that
     # is entirely one alphabet. "union" and multi-alphabet (alphabet=None)
     # loaders mix alphabets per batch, so this val accuracy is a rough
@@ -100,6 +108,7 @@ def evaluate_split(
 
 
 def _tagged_path(path: str, identifier: str, tag: str) -> Path:
+    """Insert `_{identifier}` (and, if given, `_{tag}`) before a path's extension."""
     p = Path(path)
     suffix = f"_{identifier}" + (f"_{tag}" if tag else "")
     return p.with_name(f"{p.stem}{suffix}{p.suffix}")
@@ -113,6 +122,12 @@ def train(
     alphabets: list[str] | None = None,
     n_puzzles: int | None = None,
 ) -> Path:
+    """Train (or, with `epochs=0`, just build and save untrained) one model.
+
+    Either `alphabet` (single letter or "union") or `alphabets` (a
+    multi-alphabet K-way list) must be used; see module docstring for the
+    `epochs=0` random-init-baseline mode. Returns the saved checkpoint path.
+    """
     torch.manual_seed(config.train.seed)
     random.seed(config.train.seed)
     device = pick_device(config.train.device)
@@ -231,6 +246,7 @@ def train(
 
 
 def main() -> None:
+    """CLI entry point: parse args, load the config, and run one training job."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
     group = parser.add_mutually_exclusive_group(required=True)

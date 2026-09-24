@@ -1,6 +1,6 @@
 # Two-Alphabet Sudoku Equivalence Study — Results (2026-09-07)
 
-Full run on Leonardo (CINECA EuroHPC), account `EUHPC_B38_121`, single A100
+Full run on Leonardo (CINECA EuroHPC), account `EUHPC_XXXX_XXX`, single A100
 GPU per job. Raw numbers: `results/eval_results.jsonl` (same run).
 
 ## Setup

@@ -44,6 +44,7 @@ from src.equiv.utils import pick_device  # noqa: E402
 
 
 def load_checkpoint(path: str, device: torch.device) -> tuple[SudokuPointerTransformer, dict]:
+    """Load a pointer-head checkpoint into eval mode; return (model, raw checkpoint dict)."""
     ckpt = torch.load(path, map_location=device)
     model = SudokuPointerTransformer(**ckpt["model_config"]).to(device)
     model.load_state_dict(ckpt["model_state"])
@@ -61,6 +62,9 @@ def evaluate(
     filter_fully_represented: bool = False,
     batch_size: int = 128,
 ) -> dict:
+    """Score `model` on `eval_alphabet`'s `split`: overall metrics, plus the
+    same metrics stratified by whether each puzzle's givens cover all 9
+    digits (see module docstring for why that split matters)."""
     alphabets = {eval_alphabet: offset_for_letter(eval_alphabet)}
     dataset = PointerSudokuDataset(base_path, split, eval_alphabet, alphabets, filter_fully_represented)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
@@ -114,6 +118,7 @@ def evaluate(
             buckets[name]["valid"] += (valid & board_mask).sum().item()
 
     def _metrics(b: dict) -> dict:
+        """Turn one bucket's running totals into cell/exact-match/valid rates."""
         return {
             "cell_accuracy": b["cell_correct"] / b["blank"] if b["blank"] else 0.0,
             "exact_match_rate": b["exact_match"] / b["boards"] if b["boards"] else 0.0,
@@ -129,6 +134,7 @@ def evaluate(
 
 
 def main() -> None:
+    """CLI entry point: parse args, load the checkpoint, and evaluate on one alphabet/split."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True)

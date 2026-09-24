@@ -11,10 +11,12 @@ FULL_MASK = (1 << 9) - 1  # bit (d-1) set means digit d is used
 
 
 def box_index(row: int, col: int) -> int:
+    """Map a 0-indexed (row, col) cell to its 0-8 3x3-box index, row-major."""
     return (row // 3) * 3 + (col // 3)
 
 
 def _init_masks(board: list[int]) -> tuple[list[int], list[int], list[int]]:
+    """Build the row/column/box used-digit bitmasks implied by a board's clues."""
     row_mask = [0] * 9
     col_mask = [0] * 9
     box_mask = [0] * 9
@@ -72,6 +74,7 @@ def _count_recursive(
     box_mask: list[int],
     limit: int,
 ) -> int:
+    """Backtracking search counting solutions in place, stopping once `limit` is reached."""
     found = _find_mrv_cell(board, row_mask, col_mask, box_mask)
     if found is None:
         return 1
@@ -117,6 +120,7 @@ def solve(board: list[int]) -> list[int] | None:
 def _solve_recursive(
     board: list[int], row_mask: list[int], col_mask: list[int], box_mask: list[int]
 ) -> bool:
+    """Backtracking search filling `board` in place; returns whether it succeeded."""
     found = _find_mrv_cell(board, row_mask, col_mask, box_mask)
     if found is None:
         return True
@@ -148,6 +152,7 @@ def _solve_recursive(
 
 
 def _groups(board: list[int]) -> list[list[int]]:
+    """Return all 27 constraint groups (9 rows, 9 columns, 9 boxes) as digit lists."""
     rows = [board[r * 9 : (r + 1) * 9] for r in range(9)]
     cols = [[board[r * 9 + c] for r in range(9)] for c in range(9)]
     boxes: list[list[int]] = [[] for _ in range(9)]
@@ -167,8 +172,10 @@ def is_valid_board(board: list[int]) -> bool:
 
 
 def is_complete(board: list[int]) -> bool:
+    """Whether every cell is filled (no blanks left), independent of validity."""
     return 0 not in board
 
 
 def is_solved(board: list[int]) -> bool:
+    """Whether the board is both complete and a valid Sudoku solution."""
     return is_complete(board) and is_valid_board(board)

@@ -33,10 +33,12 @@ def make_alphabets(k: int) -> dict[str, int]:
 
 
 def vocab_size_for(k: int) -> int:
+    """Total token vocabulary (embedding-table size) for `k` alphabets."""
     return 1 + k * BLOCK_SIZE  # blank + k blocks of 9 digits
 
 
 def num_classes_for(k: int) -> int:
+    """Classifier-head output width for `k` alphabets (blank is never a target)."""
     return k * BLOCK_SIZE  # output head predicts the literal token id, blank is never a target
 
 

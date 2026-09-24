@@ -1,3 +1,5 @@
+"""Tests for the frozen-body finetuning setup (finetune.freeze_for_finetune)."""
+
 import torch
 
 from src.equiv.finetune import freeze_for_finetune
@@ -6,6 +8,7 @@ from src.equiv.sudoku.alphabets import class_range, offset_for_letter, vocab_siz
 
 
 def _model_for_k(k: int) -> SudokuTransformer:
+    """A small, deterministically-initialized SudokuTransformer sized for `k` alphabets."""
     torch.manual_seed(0)
     return SudokuTransformer(
         d_model=16, n_layers=1, n_heads=2, dim_feedforward=32,
@@ -14,7 +17,7 @@ def _model_for_k(k: int) -> SudokuTransformer:
 
 
 def test_freeze_leaves_non_target_rows_bit_identical_after_one_step():
-    """The critical regression test flagged in the plan: one optimizer step
+    """A key regression test: one optimizer step
     must change ONLY target_alphabet's rows -- everything else (the shared
     encoder body, and every other alphabet's embedding/output-head rows)
     must be bit-identical before and after, and weight_decay=0 must be used
@@ -72,6 +75,7 @@ def test_freeze_leaves_non_target_rows_bit_identical_after_one_step():
 
 
 def test_frozen_params_have_requires_grad_false():
+    """The shared encoder and positional embeddings are fully frozen (requires_grad=False)."""
     model = _model_for_k(3)
     freeze_for_finetune(model, "A")
     for p in model.encoder.parameters():

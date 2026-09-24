@@ -1,3 +1,5 @@
+"""Tests for the Sudoku generator and backtracking solver (sudoku/generate.py, sudoku/solver.py)."""
+
 import random
 
 from src.equiv.sudoku.generate import generate_full_grid, generate_puzzle
@@ -10,6 +12,7 @@ from src.equiv.sudoku.solver import (
 
 
 def test_full_grid_is_valid_and_complete():
+    """generate_full_grid produces an 81-cell, fully-filled, valid Sudoku grid."""
     rng = random.Random(0)
     for seed in range(10):
         rng.seed(seed)
@@ -21,6 +24,7 @@ def test_full_grid_is_valid_and_complete():
 
 
 def test_generated_puzzles_have_unique_solution_matching_ground_truth():
+    """Every generated puzzle has exactly one solution, and it matches the recorded ground truth."""
     rng = random.Random(42)
     for _ in range(20):
         puzzle, solution = generate_puzzle(rng, target_clues=40)
@@ -35,6 +39,7 @@ def test_generated_puzzles_have_unique_solution_matching_ground_truth():
 
 
 def test_carving_reaches_roughly_target_clue_count():
+    """carve_puzzle removes cells down to close to (but possibly slightly above) target_clues."""
     rng = random.Random(7)
     puzzle, _ = generate_puzzle(rng, target_clues=40)
     clues = sum(1 for d in puzzle if d != 0)
@@ -43,6 +48,7 @@ def test_carving_reaches_roughly_target_clue_count():
 
 
 def test_unsolvable_board_returns_none():
+    """A board engineered to have zero legal candidates for one cell is correctly unsolvable."""
     # Start from a real solved grid (valid givens, no duplicates) so the
     # solver's masks reflect a consistent partial assignment. Blank exactly
     # one cell X (whose correct digit is d), then overwrite a different cell
@@ -65,6 +71,7 @@ def test_unsolvable_board_returns_none():
 
 
 def test_is_valid_board_detects_duplicates():
+    """A board with the same digit twice in one column is flagged invalid."""
     board = [0] * 81
     board[0] = 5
     board[9] = 5  # same column

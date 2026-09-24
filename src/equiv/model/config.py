@@ -11,6 +11,8 @@ import yaml
 
 @dataclass
 class DataConfig:
+    """Settings for `scripts/generate_sudoku.py`'s dataset generation."""
+
     n_puzzles: int = 2000
     target_clues: int = 40
     seed: int = 0
@@ -21,6 +23,8 @@ class DataConfig:
 
 @dataclass
 class ModelConfig:
+    """Architecture hyperparameters shared by the classifier and pointer heads."""
+
     d_model: int = 256
     n_layers: int = 8
     n_heads: int = 8
@@ -31,6 +35,8 @@ class ModelConfig:
 
 @dataclass
 class TrainConfig:
+    """Optimizer, logging, and checkpointing settings for a training run."""
+
     batch_size: int = 128
     lr: float = 3.0e-4
     weight_decay: float = 0.01  # AdamW's own default; finetune.py's freeze path overrides to 0.0
@@ -44,12 +50,15 @@ class TrainConfig:
 
 @dataclass
 class Config:
+    """Top-level config: the three sub-configs loaded from a single YAML file."""
+
     data: DataConfig = field(default_factory=DataConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
 
     @classmethod
     def load(cls, path: str | Path) -> "Config":
+        """Read a YAML file and build a `Config`, defaulting any omitted sections."""
         with open(path) as f:
             raw: dict[str, Any] = yaml.safe_load(f) or {}
         return cls(
@@ -60,6 +69,7 @@ class Config:
 
 
 def _from_dict(cls: type, raw: dict[str, Any]):
+    """Construct a dataclass from a dict, rejecting any key it doesn't declare."""
     known = {f.name for f in fields(cls)}
     unknown = set(raw) - known
     if unknown:

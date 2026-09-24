@@ -15,6 +15,7 @@ from .solver import _find_mrv_cell, _init_masks, box_index, count_solutions
 
 
 def generate_full_grid(rng: random.Random) -> list[int]:
+    """Generate one uniformly-shuffled, fully-solved 9x9 grid via backtracking."""
     board = [0] * 81
     row_mask, col_mask, box_mask = [0] * 9, [0] * 9, [0] * 9
     ok = _fill_recursive(board, row_mask, col_mask, box_mask, rng)
@@ -30,6 +31,12 @@ def _fill_recursive(
     box_mask: list[int],
     rng: random.Random,
 ) -> bool:
+    """Fill `board` in place via randomized backtracking with MRV cell ordering.
+
+    Picks the most-constrained empty cell each step (fewest legal digits) and
+    tries its candidates in random order, backtracking on dead ends. Returns
+    whether a complete, valid assignment was found.
+    """
     found = _find_mrv_cell(board, row_mask, col_mask, box_mask)
     if found is None:
         return True

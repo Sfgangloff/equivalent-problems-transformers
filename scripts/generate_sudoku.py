@@ -28,6 +28,7 @@ _SPLIT_CODE = {"train": 0, "val": 1, "test": 2}
 def make_split_assignment(
     n: int, val_fraction: float, test_fraction: float, rng: random.Random
 ) -> np.ndarray:
+    """Randomly assign each of `n` puzzle indices a split code (0=train, 1=val, 2=test)."""
     order = list(range(n))
     rng.shuffle(order)
     n_val = int(n * val_fraction)
@@ -41,6 +42,8 @@ def make_split_assignment(
 
 
 def main() -> None:
+    """CLI entry point: generate the configured number of puzzles and write
+    the base dataset (puzzles, solutions, split) to a single `.npz` file."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
     args = parser.parse_args()

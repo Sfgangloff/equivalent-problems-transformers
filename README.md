@@ -19,8 +19,7 @@ never saw, three ways:
   the unseen tokens (no retraining). This isolates whether the internal
   reasoning transfers, independent of the untrained embedding rows.
 
-See `PLAN.md` for the full design rationale and `slurm/` for how training
-runs on Leonardo (CINECA EuroHPC).
+See `slurm/` for how training runs on Leonardo (CINECA EuroHPC).
 
 ## Reproduce
 
